@@ -19,7 +19,10 @@ known, per board, from the test rig, three other machines, upstream's machine, a
   B550 with DRMShare's memory sharing, where the chipset's own ports answer the traffic with "Unsupported Request"
   ([drmshare troubleshooting](https://github.com/Cinderella-Man/drmshare/blob/main/docs/troubleshooting.md#two-cards-behind-one-amd-chipset-the-copy-finishes-nothing-arrives)).
   Keep at most one card that uses P2P behind the chipset; more need CPU lanes, for example a bifurcation splitter in the
-  CPU slot.
+  CPU slot. On the test rig a x16 -> 4 x x4 Gen 3 splitter fixed it: the same three cards each on their own CPU port,
+  every pair 3.30 GB/s, 0 wrong. Set the board's lane setting for that slot (x4x4x4x4) and its speed (Gen3 for a Gen 3
+  splitter) first, with one card straight in the slot: with the defaults the B550 found no card behind the splitter
+  (no picture, its VGA debug light on).
 - **Does not work: cards behind the cheap PCIe switches of mining boards.** The switch sends the traffic up to the
   chipset instead of across to the other card, and the chipset drops it. That holds for CUDA P2P and for the memory
   sharing of [drmshare](https://github.com/Cinderella-Man/drmshare/blob/main/docs/volta-dmabuf.md) alike.
