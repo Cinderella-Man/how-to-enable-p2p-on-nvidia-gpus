@@ -608,6 +608,31 @@ registers (its firmware also keeps AER from Linux): the writes just vanish.
 P2P behind the chipset, the others on CPU lanes; or leave P2P off for that pair. Run the integrity test
 ([procedure step 14](procedure.md#14-integrity-test)) on every pair: `OK` from `topo` is not proof.
 
+## RTX 50 with 16 GB: `OK` and peer access, but copies lose their data
+
+From an outside report by tronx2100 in
+[geforce-bar1-resize#4](https://github.com/noon-at-cgn/geforce-bar1-resize/issues/4) (an RTX 5060 Ti 16 GB, GB206),
+not reproduced here: this guide has no Blackwell card.
+
+**Symptom:** with P2P forced on (NVIDIA's keys `ForceP2P`, `RMForceP2PType`, or a driver patch that does the same in
+its code), `nvidia-smi topo -p2p r` shows `OK` and `cudaDeviceCanAccessPeer` is 1, but every copy between the cards
+silently loses its data: the destination stays as it was, and the copies report a speed no link can carry (69-72 GB/s
+in that report). No error anywhere.
+
+**Cause:** NVIDIA's BAR1 P2P on Blackwell needs static BAR1, a mapping of all of the card's memory into its BAR1. The
+driver places that mapping 512 MiB into BAR1, so on a card whose BAR1 is only as large as its memory (the 16 GB RTX 50
+cards: BAR1 16384 MiB) it does not fit, and the driver does not turn it on by itself.
+
+**Fix:** force static BAR1 with `RMForceStaticBar1=1`, together with `RMIncreaseRsvdMemorySizeMB` so the mapping fits
+(drivers 610 and later; without it the card fails to initialize). The value comes from a formula in
+geforce-bar1-resize's [driver-option.md](https://github.com/noon-at-cgn/geforce-bar1-resize/blob/main/docs/driver-option.md#static-bar1-on-a-card-whose-bar1-equals-vram);
+in the report, `24` on 620.70.06 made the copies correct both ways, at about 48 MiB of memory per card. Then check the
+data: the integrity test, or [`tools/p2p_patterns.cu`](../tools/p2p_patterns.cu) (`cewbi` and `cerbi`, each ending
+with `DATA OK` or `DATA WRONG`), which needs only `nvcc`. Seen on one card model; other 16 GB RTX 50 cards (an RTX 5080,
+an RTX 5070 Ti) are in the same position by the same reasoning, untested
+([issue #4](https://github.com/Cinderella-Man/how-to-enable-p2p-on-nvidia-gpus/issues/4) has an RTX 5080 + RTX 5060 Ti
+16 GB at `OK`, data not checked yet).
+
 ## Cards fall off the bus after `p2p-load.sh` (`Xid 79`)
 
 From an outside report: four RTX 2080 Ti that need a clock lock to run stable.
