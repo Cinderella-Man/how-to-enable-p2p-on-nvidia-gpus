@@ -59,6 +59,7 @@ So far `OK` was wrong in all of these cases, most of them without any error:
 | copies are lost or blocked | the IOMMU translating addresses instead of passthrough | two Tesla V100s on an AMD B450, four Tesla P40s on an Intel X99 (outside report) ([troubleshooting](docs/troubleshooting.md#peer-copies-faster-than-the-link-allows-or-io_page_fault-from-nvidia)) |
 | every copy is lost, at a speed no link can carry | a 16 GB RTX 50 card without static BAR1 | RTX 5060 Ti 16 GB (outside report) ([troubleshooting](docs/troubleshooting.md#rtx-50-with-16-gb-ok-and-peer-access-but-copies-lose-their-data)) |
 | every read returns `0xffffffff`, writes work | one card behind an Intel B460 chipset | 2x RTX 4060 Ti (outside report) ([troubleshooting](docs/troubleshooting.md#peer-reads-return-0xffffffff-writes-work)) |
+| kernel reads of the other card return wrong data; copies and writes are byte-exact | two CPU root ports of an Intel client CPU (Core i7-11700K on a Z590), with the driver forcing reads on | 2x RTX 3090 (outside report, [geforce-dynbar1-p2p#9](https://github.com/noon-at-cgn/geforce-dynbar1-p2p/issues/9)); NVIDIA: Intel client CPUs support only P2P writes ([#1253](https://github.com/NVIDIA/open-gpu-kernel-modules/issues/1253)); the pinned driver refuses such pairs since fork commit `e067c4a` |
 | the first copy loses all its data | cards behind a mining board's PCIe switches, P2P forced on | 9x P106-090 ([pascal-and-volta](docs/pascal-and-volta.md#the-test-on-a-mining-box-the-driver-said-yes-the-hardware-said-no)) |
 | byte-exact, but about 25 times slower than through host RAM | cards on two CPU sockets of a Xeon E7 v4 server | 5x RTX 2080 Ti (outside report) ([troubleshooting](docs/troubleshooting.md#two-cpu-sockets-p2p-works-but-slower-than-copying-through-host-memory)) |
 | CUDA gives no peer access at all | two different Turing chips; two GPU generations | RTX 2060 + GTX 1650 SUPER, RTX 2060 + RTX 3060 ([turing.md T5](docs/turing.md#t5-cuda-and-the-integrity-test), [mixed-generations](docs/mixed-generations.md#why-cuda-says-no)) |
@@ -179,11 +180,13 @@ on CPU lanes, prompt 2048 / generation: 1,668 / 42.8 without NCCL, 1,818 / 42.1 
 For RTX 30 cards (GA102). Turing cards need the extra steps in [docs/turing.md](docs/turing.md). Pascal and Volta cards
 use NVIDIA's stock driver instead: [docs/pascal-and-volta.md](docs/pascal-and-volta.md).
 
-1. BIOS: Above 4G Decoding and Resizable BAR on (BAR1 must be at least VRAM), Secure Boot off.
+1. BIOS: Above 4G Decoding on, Resizable BAR on if the BIOS has it, Secure Boot off. BAR1 must be at least VRAM: a
+   card left at 256 MB (no Resizable BAR in the BIOS or in its vBIOS) gets its window from geforce-bar1-resize at every
+   boot, without flashing ([docs/three-cards.md#bar1-on-cards-without-resizable-bar](docs/three-cards.md#bar1-on-cards-without-resizable-bar)).
 2. Ubuntu 26.04, then **`nvidia-driver-615-open`**. Not the `595` that `ubuntu-drivers` recommends. Hold the 615
    packages.
 3. Kernel command line `iommu=pt` (IOMMU passthrough; Intel: `intel_iommu=on iommu=pt`). CUDA Toolkit 13.5 (`cuda-toolkit-13-5` only).
-4. Clone the fork (pinned to `9f80306`), install `pahole`, run `make modules`.
+4. Clone the fork (pinned to `4361112`), install `pahole`, run `make modules`.
 5. Set `RMForceStaticBar1=0` for each card in modprobe.d. Set the card addresses and build path in `contrib/config.sh`.
 6. **Disable the `remove` rules in udev's `71-nvidia.rules` and mask `nvidia-persistenced`.** Otherwise udev puts the
    stock driver back right after the swap.

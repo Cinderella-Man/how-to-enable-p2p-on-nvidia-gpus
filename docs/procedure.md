@@ -20,7 +20,10 @@ The fork's pin has moved since those runs: to `25c929e` (an opt-in driver key, o
 tested on three RTX 3090s on another machine as a trial load ([three-cards.md](three-cards.md)), and then to `d8f11e2`
 (two more from a second outside report: cards on two Intel CPU sockets are refused as in NVIDIA's own driver, and the
 integrity test tells a slow pair from a hung one), and on 2026-11-28 to `9f80306` (`p2p-check.sh` without `--integrity`
-ends in `SETUP OK, DATA NOT CHECKED` instead of `ALL PASS`; text only, checked with the fork's stand-in tests).
+ends in `SETUP OK, DATA NOT CHECKED` instead of `ALL PASS`; text only, checked with the fork's stand-in tests), and then
+to `4361112` (cards on two root ports of an Intel desktop or laptop CPU are refused: such a CPU does not route peer
+reads; the GA102 cards with passing integrity tests are verified; the original repository's compatibility reports).
+`e067c4a`'s driver change compiles and has not run on a GPU either; on an AMD board or a Xeon it changes nothing.
 `acd74cf`'s driver change compiles and has not run on a GPU; with the cards on one socket it changes nothing. The whole
 procedure has not been re-run with this pin.
 
@@ -37,8 +40,10 @@ the modules are swapped.
 - A board that carries the traffic between the two slots. Both cards on CPU lanes is best; a chipset slot works with
   limits; cards behind a mining board's PCIe switches do not get P2P. What is known per board:
   [boards.md](boards.md).
-- Resizable BAR working, so each card's BAR1 is at least as large as its VRAM (32 GiB BAR1 for a 24 GiB 3090, 16 GiB
-  for a 10 or 12 GB 3080).
+- Each card's BAR1 at least as large as its VRAM (32 GiB for a 24 GiB 3090, 16 GiB for a 10 or 12 GB 3080): from
+  Resizable BAR in the BIOS, or, where the BIOS has no such option or the card's vBIOS stops at 256 MB, from
+  geforce-bar1-resize at every boot, without flashing anything ([three-cards.md](three-cards.md#bar1-on-cards-without-resizable-bar)). Either way Above 4G Decoding
+  must be on.
 - Secure Boot **off**. The modules you build here are unsigned.
 - Ubuntu 26.04 with the `nvidia-driver-615-open` package: version **615.71.09** exactly. Any other driver branch
   will not work with this patch set.
@@ -64,7 +69,12 @@ for d in $(lspci -D -d 10de::0300 | awk '{print $1}'); do echo "== $d"; sudo lsp
 
 Each card must show a BAR 1 at least as large as its memory: `Region 1: ... [size=32G]` and
 `BAR 1: current size: 32GB` on an RTX 3090, `16G` / `16GB` on an RTX 3080. If it shows `256M`, Resizable BAR is
-not active (in the BIOS, or the card's vBIOS predates Resizable BAR). Fix that in the BIOS first; nothing below works without it. A card whose vBIOS lists nothing above 256 MB (`supported: 64MB 128MB 256MB`) can get its window from geforce-bar1-resize instead of a vBIOS update: [three-cards.md](three-cards.md#bar1-on-cards-without-resizable-bar). `LnkSta` showing `2.5GT/s (downgraded)` at idle
+not active: turn it on in the BIOS if the BIOS has the option. If it has none, or the card's vBIOS lists nothing above
+256 MB (`supported: 64MB 128MB 256MB`), geforce-bar1-resize gives the card its full window at every boot instead, with
+no vBIOS update and no BIOS option (only Above 4G Decoding): [three-cards.md](three-cards.md#bar1-on-cards-without-resizable-bar). It did so for two RTX 3090s whose
+vBIOS stops at 256 MB, and on an X99 board without any Resizable BAR option (Huananzhi X99-F8, two RTX 3090, an outside
+report: [geforce-dynbar1-p2p#5](https://github.com/noon-at-cgn/geforce-dynbar1-p2p/issues/5)). Nothing below works
+with a 256 MB BAR1. `LnkSta` showing `2.5GT/s (downgraded)` at idle
 is normal: the link slows down to save power and speeds up under load.
 
 ```bash
@@ -294,7 +304,7 @@ Clone the fork and pin the commit this guide was written against:
 cd ~
 git clone https://github.com/Cinderella-Man/geforce-dynbar1-p2p.git
 cd geforce-dynbar1-p2p
-git checkout 9f803069d60e2aae46baac0bfee2e75fd7e19260
+git checkout 43611128eda058e474cdc616b9c19d4f0fa5ba51
 ```
 
 ```bash
@@ -304,9 +314,9 @@ git log --oneline -3
 Expected:
 
 ```
-9f803069 contrib: p2p-check.sh says SETUP OK, DATA NOT CHECKED unless --integrity checked the data
-d8f11e2b contrib: p2p-check.sh --integrity tells a slow pair from a hung one
-acd74cf6 p2p_caps: keep stock's refusal of GPUs on two Intel CPU sockets (I/O hubs)
+43611128 Compatibility reports: the GA102 cards with passing integrity tests are verified; the reports and platform limits documented
+e067c4a9 p2p_caps: refuse GPUs on two root ports of an Intel client CPU (no peer reads)
+44562b5f Compatibility reports, the clone and geforce-bar1-resize links point at the Cinderella-Man forks
 ```
 
 Is the code safe to load? See [security-review.md](security-review.md): everything in the fork that is not NVIDIA's
@@ -314,7 +324,7 @@ official 615.71.09 source was reviewed, and no malicious code was found.
 
 ## 9. What the fork changes compared to upstream (nothing to do)
 
-The fork's `main` is upstream `ab0ee7d` (upstream `main` as of 2026-11-23) plus nine commits:
+The fork's `main` is upstream `ab0ee7d` (upstream `main` as of 2026-11-23) plus twelve commits:
 
 | Commit | Why |
 |---|---|
@@ -327,6 +337,9 @@ The fork's `main` is upstream `ab0ee7d` (upstream `main` as of 2026-11-23) plus 
 | [`acd74cf`](https://github.com/Cinderella-Man/geforce-dynbar1-p2p/commit/acd74cf67bfe935c08c2b7855243d030a667f0dc) two CPU sockets | NVIDIA's driver refuses P2P between cards on two Intel CPU sockets of the Xeon E5/E7 generations up to v4 (`TNS`): it is slower there than copying through host memory. The patched driver skipped that check along with the ones it has to skip for GeForce cards, and an outside report measured 0.23 GB/s between sockets ([troubleshooting](troubleshooting.md#two-cpu-sockets-p2p-works-but-slower-than-copying-through-host-memory)). Now it keeps it, and `p2p-check.sh --pairs` says why such a pair is not supported. Cards on one socket: no change. Compiles; not run on a GPU. |
 | [`d8f11e2`](https://github.com/Cinderella-Man/geforce-dynbar1-p2p/commit/d8f11e2b345d66c1a4c16468188ac142e9e0b017) slow pair | When the integrity test reaches its time limit for a pair but every case so far was byte-exact, `p2p-check.sh --integrity` now says `incomplete` with a larger limit to try, instead of "the GPUs may be wedged", and goes on to the next pair ([troubleshooting](troubleshooting.md#p2p-checksh---integrity-times-out-on-a-slow-pair-every-case-clean)). Only the script and its tests change. |
 | [`9f80306`](https://github.com/Cinderella-Man/geforce-dynbar1-p2p/commit/9f803069d60e2aae46baac0bfee2e75fd7e19260) no `ALL PASS` without a data check | `p2p-check.sh` without `--integrity` moves no data, but a clean run ended in `ALL PASS`, which reads as "P2P works" while `nvidia-smi topo -p2p r`'s `OK` only says the driver offers it ([`OK` is not proof](../README.md#ok-is-not-proof)). Such a run now ends in `SETUP OK, DATA NOT CHECKED`, its `topo` lines say `OK (P2P offered; no data check)`, and `ALL PASS` comes only from `--integrity`. Same exit status. Text only, with its stand-in tests |
+| [`44562b5`](https://github.com/Cinderella-Man/geforce-dynbar1-p2p/commit/44562b5f) links | The compatibility-report link, the clone and the geforce-bar1-resize links point at the Cinderella-Man forks, whose issues are open. Text only |
+| [`e067c4a`](https://github.com/Cinderella-Man/geforce-dynbar1-p2p/commit/e067c4a9) Intel client CPUs | An Intel desktop or laptop CPU (Core, and the Xeon E3/E/W-1x00 on the same dies) forwards peer writes between its root ports but not peer reads, and the fork offered reads all the same: in an outside report (Z590, Core i7-11700K, 2x RTX 3090) copies were byte-exact while kernel reads of the other card came back wrong. Such pairs are now refused (`TNS`), as NVIDIA's stock rule effectively does; cards below one PCIe switch and NVIDIA's `ForceP2P` are not. A check added in `p2p_caps.c` (CPU family and model, root port vendor), the same rule in `contrib/chips.sh`, a stand-in test |
+| [`4361112`](https://github.com/Cinderella-Man/geforce-dynbar1-p2p/commit/43611128eda058e474cdc616b9c19d4f0fa5ba51) verified cards | The GA102 cards with passing integrity tests on this driver count as verified (RTX 3080 10/12/20 GB, 3080 Ti, 3080 Ti 20GB, 3090, 3090 Ti), and the original repository's ten compatibility reports are in its README with the platform limits they showed. Scripts' verdict texts and docs |
 
 To see the full difference:
 

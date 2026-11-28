@@ -3,7 +3,7 @@
 The cards decide which driver you need (the table at the top of the [README](../README.md#which-path-is-yours)). The
 **motherboard** decides whether the traffic between the two cards gets through, and how fast. P2P data travels from one
 card through the board's PCIe paths into the other card, and each board has its own paths. This page collects what is
-known, per board, from the test rig, three other machines, upstream's machine, and six outside reports.
+known, per board, from the test rig, three other machines, upstream's machine, and eight outside reports.
 
 ## In short
 
@@ -35,6 +35,12 @@ known, per board, from the test rig, three other machines, upstream's machine, a
   0.23 GB/s, about 25 times slower than copies through host memory. On Intel's Xeon E5/E7 up to v4 the driver refuses
   such pairs (`TNS`), as NVIDIA's own does
   ([troubleshooting](troubleshooting.md#two-cpu-sockets-p2p-works-but-slower-than-copying-through-host-memory)).
+- **Intel desktop and laptop CPUs (Core): writes only between CPU root ports.** NVIDIA states that Intel client CPUs
+  support only P2P writes ([NVIDIA/open-gpu-kernel-modules#1253](https://github.com/NVIDIA/open-gpu-kernel-modules/issues/1253)),
+  and on a Z590 with a Core i7-11700K (outside report) kernel reads of the other card came back wrong while copies were
+  byte-exact. CUDA's peer access needs reads, so such a pair should not get P2P: the pinned driver refuses it (`TNS`)
+  since fork commit `e067c4a` ([procedure step 9](procedure.md#9-what-the-fork-changes-compared-to-upstream-nothing-to-do)),
+  unless both cards sit below one PCIe switch.
 - **On every board:** the IOMMU in passthrough mode ([procedure step 4](procedure.md#4-iommu-in-passthrough-mode)), or
   peer writes can be lost without any error. And test before you trust it ([below](#check-your-board)).
 
@@ -52,6 +58,8 @@ known, per board, from the test rig, three other machines, upstream's machine, a
 | Outside report, not verified here: dual-socket Intel X99 | each card on PCIe 3.0 x16 CPU lanes, two cards per socket | 4x Tesla P40 24 GB (stock driver 580) | **works between two cards on the same socket, with `iommu=pt`**: 10.3 GB/s one way, 19.2 GB/s both ways, byte-exact (the reporter's own test, one pair). Without it every copy came back wrong, with `DMAR` faults and no error. Across the sockets the driver offers no P2P (`TNS`) ([pascal-and-volta](pascal-and-volta.md#outside-report-four-tesla-p40s-on-a-dual-socket-x99)) |
 | Outside report, not verified here: HP ProLiant DL580 Gen9, 4x Xeon E7-8890 v4 (four sockets) | each card on its own CPU root port, PCIe 3.0 x16; three cards on three sockets, two on the fourth, those two joined by an NVLink bridge (`nvidia-smi topo -m`: `SYS` between every other pair, `NV2` for the bridged one) | 5x RTX 2080 Ti 22 GB (patched driver up to `b70b69c`, [turing.md](turing.md#outside-report-five-rtx-2080-ti-22-gb-on-a-four-socket-server)) | **works, but slower than host memory between sockets**: byte-exact over NVLink (about 38 GB/s) and between two sockets (246 of 252 cases, both ways), but between sockets peer writes ran at 0.23 GB/s and reads at 1.3 GB/s, while copies from host memory to a card peak at a little over 12 GB/s, so a copy staged through host memory is about 25 times faster (the reporter's estimate). The pinned driver refuses such pairs, as NVIDIA's own does ([troubleshooting](troubleshooting.md#two-cpu-sockets-p2p-works-but-slower-than-copying-through-host-memory)); the reporter's table after the fix shows `TNS` for them, but whether the pinned build was loaded for it is not reported. No pair of PCIe cards on one socket to compare: the only two on one socket are the NVLink pair |
 | Outside report, not verified here: Intel X79, Xeon E5-2680 v2 (one socket) | four cards, every pair through the CPU (`PHB`); slots and links not reported | 4x RTX 2080 Ti 11 GB (patched driver, [turing.md](turing.md#outside-report-four-rtx-2080-ti-on-an-x79-board)) | **works, after a boot option for the board's 64-bit window**: the grown windows first landed where the CPU does not decode them, and every card failed to start until `memmap=` kept Linux out of that range ([troubleshooting](troubleshooting.md#after-the-bar1-resize-every-card-fails-kbusverifybar2_gm107--returned-garbage)). Then the integrity test passed on all six pairs: 3.1-5.2 GB/s one way, 10.4 GB/s both ways, 0.9 µs. Room for four 16 GiB windows, not more |
+| Outside report, not verified here: ASUS ROG STRIX Z590-A, Core i7-11700K ([geforce-dynbar1-p2p#9](https://github.com/noon-at-cgn/geforce-dynbar1-p2p/issues/9)) | each card on its own CPU root port, no switch | 2x RTX 3090 (patched driver) | **writes only**: copies and kernel writes byte-exact, but kernel reads of the other card returned wrong data, while `topo -p2p r` said `OK` and CUDA offered peer access. NVIDIA states that Intel client CPUs support only P2P writes ([NVIDIA/open-gpu-kernel-modules#1253](https://github.com/NVIDIA/open-gpu-kernel-modules/issues/1253)) |
+| Outside report, not verified here: MSI PRO X870-P WIFI, Ryzen 7 9800X3D ([geforce-dynbar1-p2p#10](https://github.com/noon-at-cgn/geforce-dynbar1-p2p/issues/10)) | GPU0 in the CPU slot (PCIe 4.0 x16), GPU1 in a **chipset slot** (PCIe 4.0 x4) | RTX 3090 Ti + RTX 3090 (patched driver) | **works, slow in one direction**: integrity test passed (264 cases), but from the CPU-slot card into the chipset card 2.24 GB/s against 6.42 GB/s the other way, slower than copies through host memory on the stock driver (4.65 GB/s). On such a board compare P2P with host staging in both directions |
 | Outside report, not verified here: ASUS TUF GAMING X570-PRO, Ryzen 7 5800X ([drmshare#1](https://github.com/Cinderella-Man/drmshare/issues/1)) | GPU0 in a **chipset slot** (PCIe 4.0 x4), GPU1 in the CPU slot (PCIe 3.0 x16, the card's own limit) | RTX 3060 12 GB + RTX 2070 8 GB (patched driver and a patched copy of `libcuda`: two generations, [mixed-generations](mixed-generations.md#outside-report-rtx-2070--rtx-3060-on-an-x570)) | **works, with `iommu=pt`**: 6.59 GB/s each way, the chipset link's limit (the X570 AORUS ULTRA's chipset slot above: 6.60 GB/s), byte-exact by the reporter's own SHA-256 checks. With Ubuntu's default IOMMU mode the kernel logged `IO_PAGE_FAULT` under load from both cards, and NVMe drives dropped off during heavy writes |
 
 ## What the board decides
@@ -92,6 +100,8 @@ A **write** into the other card needs no answer, and every board above that carr
 | X570 chipset slot (three RTX 3090s) | yes | yes, byte-exact (integrity test) | not tested |
 | B550 chipset slot (test rig) | yes | yes, byte-exact | **resets the machine** (tested with two different Turing chips; identical cards not tested) |
 | B460 chipset slot (outside report) | yes | **no**: `0xffffffff` | no |
+| Two CPU root ports of an Intel client CPU, Z590 (outside report) | yes | **no**: wrong data | no |
+| X870 chipset slot (outside report) | yes, but slow into the chipset card | yes (integrity test) | not tested |
 | Two chipset slots, card to card: B550 (test rig, memory sharing), Z390 (outside report, CUDA P2P) | **no** | no | no |
 | ASM1184e switch (mining board) | **no** | no | no |
 
