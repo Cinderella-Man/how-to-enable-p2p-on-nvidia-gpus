@@ -26,7 +26,7 @@ The test rig:
 
 | | Card | Chip | Memory | Slot | Memory window (BAR1) |
 |---|---|---|---|---|---|
-| GPU0 `04:00.0` | EVGA GeForce RTX 2060 | TU104 (`10de:1e89`), Turing | 6 GB | B550 chipset slot, PCIe 3.0 x4 | 8 GB, from [turing.md](turing.md) T1-T3 |
+| GPU0 `04:00.0` | EVGA GeForce RTX 2060 | TU104 (`10de:1e89`), Turing | 6 GB | B550 chipset slot, PCIe 3.0 x4 | 8 GB, from [procedure.md step 4b](procedure.md#4b-a-bar1-at-least-as-large-as-each-cards-memory) (turing.md T1-T3) |
 | GPU1 `2b:00.0` | MSI GeForce RTX 3060 VENTUS 2X 12G OC (LHR) | GA106 (`10de:2504`), Ampere | 12 GB | CPU slot, PCIe 4.0 x16 | 16 GB, from the firmware's Resizable BAR |
 
 Software: Ubuntu 26.04.1, kernel 7.0.0-44-generic, driver 615.71.09 with the fork at `25c929e`, CUDA 13.5, aikitoria's
@@ -52,15 +52,14 @@ The fork's own pair check knows this and says so:
 1. [procedure.md](procedure.md) steps 1-10, 11a and 16a: BIOS (Above 4G Decoding and Resizable BAR on), Ubuntu, driver
    615, IOMMU in passthrough mode, CUDA 13.5, the fork at the pinned commit, the build, `contrib/config.sh` with both
    cards' addresses, the initramfs fix.
-2. For the Turing card: [turing.md](turing.md) T1-T3, the bigger memory window at every boot. `geforce-bar1-resize`
-   records the RTX 3060 too and leaves it alone: its firmware already gives it a window larger than its memory. With its
-   default `DRIVER_OPTION=auto` it also writes `RMForceStaticBar1=0` only for the card it enlarged, so the RTX 3060
-   keeps the driver's static BAR1; [procedure.md step 11b](procedure.md#11b-driver-dynamic-bar1-for-each-card-rmforcestaticbar10)
-   needs the option for every card. Switch the tool to every card and rewrite its option file:
+2. For the Turing card: [procedure.md step 4b](procedure.md#4b-a-bar1-at-least-as-large-as-each-cards-memory), the bigger memory window at every boot, with
+   [turing.md T2](turing.md#t2-add-the-usb-c-pre-step) before its reboot. `geforce-bar1-resize` records the RTX 3060
+   too and leaves it alone: its firmware already gives it a window larger than its memory. Step 4b sets
+   `DRIVER_OPTION=on`, so the tool writes `RMForceStaticBar1=0` for the RTX 3060 as well, which
+   [procedure.md step 11b](procedure.md#11b-driver-dynamic-bar1-for-each-card-rmforcestaticbar10) needs for every card
+   (with the default `auto` it writes it only for the card it enlarges). Check:
 
 ```bash
-sudo sed -i 's/^DRIVER_OPTION=auto$/DRIVER_OPTION=on/' /etc/geforce-bar1-resize.conf
-sudo geforce-bar1-resize driver-option --write
 sudo modprobe -c | grep NVreg_RegistryDwordsPerDevice
 ```
 

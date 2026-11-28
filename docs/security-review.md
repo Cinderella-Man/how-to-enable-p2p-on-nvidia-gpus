@@ -73,8 +73,8 @@ red flags:
   words in its own buffers). No network access, no new writes outside the files they already manage.
 
 What was **not** covered: the correctness of the new locking and refcounting (bugs there would mean instability, not
-malice), and the external `geforce-bar1-resize` tool, which only the Turing steps use; [turing.md](turing.md#t1-install-geforce-bar1-resize-pinned)
-notes what was checked in it before it ran on the test rig.
+malice), and the external `geforce-bar1-resize` tool, which step 4b uses for every card whose BAR1 is smaller than its memory;
+[procedure.md step 4b](procedure.md#4b-a-bar1-at-least-as-large-as-each-cards-memory) notes what was checked in it before it ran on the test rig.
 
 ## Risky but legitimate: know these
 

@@ -49,7 +49,7 @@ for d in $(lspci -D -d 10de::0300 | awk '{print $1}'); do echo "$d $(sudo lspci 
 
 A card that lists `32GB` gets it from the BIOS setting. A card that does not would need a vBIOS update from its maker.
 Instead, [geforce-bar1-resize](https://github.com/Cinderella-Man/geforce-bar1-resize), the tool the Turing cards use
-([turing.md T1](turing.md#t1-install-geforce-bar1-resize-pinned)), gave all three cards 32 GiB: by a plain resize on
+([procedure.md step 4b](procedure.md#4b-a-bar1-at-least-as-large-as-each-cards-memory)), gave all three cards 32 GiB: by a plain resize on
 `0b:00.0`, and through the frame-buffer size override in config space (`0x610`) on the other two, including the card
 behind the chipset. Its read-only check shows the route per card:
 
@@ -71,11 +71,12 @@ function next to the GPU, which is what blocked the Turing cards ([turing.md T2]
 The tool lists every card but the RTX 3080 20GB as untested; on the 3090 it verified every step as it ran.
 
 **How it was run here.** The tool normally runs at every boot, before the driver loads
-([turing.md T1-T3](turing.md#t1-install-geforce-bar1-resize-pinned)). Here, to avoid a reboot, it ran once by hand
+([procedure.md step 4b](procedure.md#4b-a-bar1-at-least-as-large-as-each-cards-memory)). Here, to avoid a reboot, it ran once by hand
 with the driver unloaded (after [step 12](procedure.md#12-prepare-the-live-swap-stop-everything-that-reloads-the-stock-driver),
 `rmmod` of the stock modules), as `geforce-bar1-resize record` while the driver was still loaded, then
 `geforce-bar1-resize boot --card <address>` per card. The windows stay until the next reboot. For a machine that keeps
-P2P, install the tool as in turing.md T1 (without T2, which only Turing cards need) and reboot. Not tested here.
+P2P, install the tool as in procedure.md step 4b and reboot: not tested on this machine, done at boot in outside
+reports (two RTX 3090s on an X99 board, [geforce-dynbar1-p2p#5](https://github.com/noon-at-cgn/geforce-dynbar1-p2p/issues/5)).
 
 **IOMMU, also without a reboot.** This machine had no `iommu=pt`
 ([step 4](procedure.md#4-iommu-in-passthrough-mode)). With the driver unloaded and each card's HDMI audio function

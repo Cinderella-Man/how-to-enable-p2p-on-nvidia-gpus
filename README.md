@@ -29,7 +29,7 @@ those about DRMShare, its NCCL fork or the llama.cpp copy to [DRMShare's](https:
 | RTX 20 series, GTX 16 series | Turing | the patched driver, plus a bigger memory window at every boot and P2P switched on per card | [procedure.md](docs/procedure.md), then [turing.md](docs/turing.md) | **works, experimental**: RTX 2060 + GTX 1650 SUPER; outside reports: 4x RTX 2080 Ti on an Intel X79 board, 5x RTX 2080 Ti 22 GB on a four-socket server |
 | GTX 10 series, P106 / P104 mining cards | Pascal | NVIDIA's stock driver 580, no patch | [pascal-and-volta.md](docs/pascal-and-volta.md) | **verified**: 2x P106-090 |
 | Tesla V100 | Volta | NVIDIA's stock driver 580, no patch | [pascal-and-volta.md](docs/pascal-and-volta.md) | **verified**: 2x V100 PCIe 32 GB, on another machine |
-| Two generations: RTX 2060 + RTX 3060 | Turing + Ampere | the patched driver; then a patched copy of `libcuda` (CUDA peer access), or the fork's key for writes through the other card's memory window | [procedure.md](docs/procedure.md), [turing.md](docs/turing.md) T1-T3, then [mixed-generations.md](docs/mixed-generations.md) | **works, experimental**: RTX 2060 + RTX 3060; outside report: RTX 2070 + RTX 3060 (CUDA peer access) |
+| Two generations: RTX 2060 + RTX 3060 | Turing + Ampere | the patched driver; then a patched copy of `libcuda` (CUDA peer access), or the fork's key for writes through the other card's memory window | [procedure.md](docs/procedure.md) (step 4b for the Turing card's window, with [turing.md](docs/turing.md) T2), then [mixed-generations.md](docs/mixed-generations.md) | **works, experimental**: RTX 2060 + RTX 3060; outside report: RTX 2070 + RTX 3060 (CUDA peer access) |
 | RTX 3050 to 3070 Ti, RTX 40 series | other Ampere chips, Ada | the patched driver; P2P opt-in per card upstream | [procedure.md](docs/procedure.md), then upstream's [opt-in](https://github.com/Cinderella-Man/geforce-dynbar1-p2p#opt-in-for-other-chips) | not tested |
 | RTX 50 series | Blackwell | upstream leaves these to NVIDIA's own driver, which offers BAR1 P2P (untested upstream too). **16 GB cards** (BAR1 only as large as their memory) need static BAR1 forced first, or P2P shows `OK` while copies lose their data ([troubleshooting](docs/troubleshooting.md#rtx-50-with-16-gb-ok-and-peer-access-but-copies-lose-their-data)) | upstream's [README](https://github.com/Cinderella-Man/geforce-dynbar1-p2p) | not tested here; outside report: RTX 5080 + RTX 5060 Ti 16 GB, `NS` on NVIDIA's 620.73.04, offered (`OK`) with another P2P patch, data not checked yet ([issue #4](https://github.com/Cinderella-Man/how-to-enable-p2p-on-nvidia-gpus/issues/4)) |
 
@@ -182,7 +182,7 @@ use NVIDIA's stock driver instead: [docs/pascal-and-volta.md](docs/pascal-and-vo
 
 1. BIOS: Above 4G Decoding on, Resizable BAR on if the BIOS has it, Secure Boot off. BAR1 must be at least VRAM: a
    card left at 256 MB (no Resizable BAR in the BIOS or in its vBIOS) gets its window from geforce-bar1-resize at every
-   boot, without flashing ([docs/three-cards.md#bar1-on-cards-without-resizable-bar](docs/three-cards.md#bar1-on-cards-without-resizable-bar)).
+   boot, without flashing ([procedure step 4b](docs/procedure.md#4b-a-bar1-at-least-as-large-as-each-cards-memory)).
 2. Ubuntu 26.04, then **`nvidia-driver-615-open`**. Not the `595` that `ubuntu-drivers` recommends. Hold the 615
    packages.
 3. Kernel command line `iommu=pt` (IOMMU passthrough; Intel: `intel_iommu=on iommu=pt`). CUDA Toolkit 13.5 (`cuda-toolkit-13-5` only).

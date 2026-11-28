@@ -13,6 +13,7 @@ Ubuntu's stock 615.71.09 packages.
 | Steps | Status |
 |---|---|
 | 1-16 (driver, CUDA, build from the fork, trial load, integrity test, boot install, reboot) | **Verified 2026-11-23, twice.** First on the original test rig (installed as 24.04, upgraded to 26.04). Then on the same machine **freshly installed with Ubuntu 26.04.1**, as a blind run: a reader with only this repository followed the steps in order. That run found two gaps, both fixed in this version: `git` was missing in step 6, and the initramfs needed step 16a. In both runs the integrity test passed (264 cases, 1.4 TiB byte-exact), and P2P came up by itself after every reboot, including with Ubuntu's default udev rules and `nvidia-persistenced`. |
+| 4b (BAR1 with geforce-bar1-resize, every card) | The same commands as [turing.md](turing.md) T1-T3, verified at boot with two Turing cards on the test rig; on RTX 3090s whose vBIOS stops at 256 MB run once by hand on another machine ([three-cards.md](three-cards.md#bar1-on-cards-without-resizable-bar)), and at boot in outside reports. Step 4b itself, as written, has not been run start to end. |
 | 17-18 (updates, rollback) | Taken from the upstream scripts and README. Not run yet. |
 
 The fork's pin has moved since those runs: to `25c929e` (an opt-in driver key, off unless set) and, on 2026-11-25, to
@@ -44,8 +45,8 @@ the modules are swapped.
   [boards.md](boards.md).
 - Each card's BAR1 at least as large as its VRAM (32 GiB for a 24 GiB 3090, 16 GiB for a 10 or 12 GB 3080): from
   Resizable BAR in the BIOS, or, where the BIOS has no such option or the card's vBIOS stops at 256 MB, from
-  geforce-bar1-resize at every boot, without flashing anything ([three-cards.md](three-cards.md#bar1-on-cards-without-resizable-bar)). Either way Above 4G Decoding
-  must be on.
+  geforce-bar1-resize at every boot, without flashing anything ([step 4b](#4b-a-bar1-at-least-as-large-as-each-cards-memory)).
+  Either way Above 4G Decoding must be on.
 - Secure Boot **off**. The modules you build here are unsigned.
 - Ubuntu 26.04 with the `nvidia-driver-615-open` package: version **615.71.09** exactly. Any other driver branch
   will not work with this patch set.
@@ -72,11 +73,9 @@ for d in $(lspci -D -d 10de::0300 | awk '{print $1}'); do echo "== $d"; sudo lsp
 Each card must show a BAR 1 at least as large as its memory: `Region 1: ... [size=32G]` and
 `BAR 1: current size: 32GB` on an RTX 3090, `16G` / `16GB` on an RTX 3080. If it shows `256M`, Resizable BAR is
 not active: turn it on in the BIOS if the BIOS has the option. If it has none, or the card's vBIOS lists nothing above
-256 MB (`supported: 64MB 128MB 256MB`), geforce-bar1-resize gives the card its full window at every boot instead, with
-no vBIOS update and no BIOS option (only Above 4G Decoding): [three-cards.md](three-cards.md#bar1-on-cards-without-resizable-bar). It did so for two RTX 3090s whose
-vBIOS stops at 256 MB, and on an X99 board without any Resizable BAR option (Huananzhi X99-F8, two RTX 3090, an outside
-report: [geforce-dynbar1-p2p#5](https://github.com/noon-at-cgn/geforce-dynbar1-p2p/issues/5)). Nothing below works
-with a 256 MB BAR1. `LnkSta` showing `2.5GT/s (downgraded)` at idle
+256 MB (`supported: 64MB 128MB 256MB`), [step 4b](#4b-a-bar1-at-least-as-large-as-each-cards-memory) gives the card its
+full window with geforce-bar1-resize, with no vBIOS update and no BIOS option. Nothing after step 4b works with a
+256 MB BAR1. `LnkSta` showing `2.5GT/s (downgraded)` at idle
 is normal: the link slows down to save power and speeds up under load.
 
 ```bash
@@ -218,6 +217,104 @@ sudo dmesg | grep -i 'Default domain type'
 ```
 
 Expected: `iommu: Default domain type: Passthrough (set via kernel command line)`
+
+## 4b. A BAR1 at least as large as each card's memory
+
+P2P needs each card's BAR1 (its memory window, `Region 1`) to be at least as large as its memory. Check it as in step
+1:
+
+```bash
+for d in $(lspci -D -d 10de::0300 | awk '{print $1}'); do echo "$d $(sudo lspci -vv -s $d | grep -oE 'Region 1:.*|BAR 1: current size.*' | tr '\n' ' ')"; done
+```
+
+- **Every card shows at least its memory** (`[size=32G]` on an RTX 3090, `16G` on a 10 or 12 GB RTX 3080): go on to
+  step 5.
+- **A card shows less** (`[size=256M]`), and the BIOS has a Resizable BAR option that is off: turn it on, reboot, check
+  again.
+- **Otherwise**: the BIOS has no such option, or the card itself offers nothing larger (`supported: 64MB 128MB 256MB`).
+  That is every Turing card (RTX 20, GTX 16) and many RTX 30 cards, RTX 3090s included. A vBIOS update is not needed:
+  [geforce-bar1-resize](https://github.com/Cinderella-Man/geforce-bar1-resize) enlarges BAR1 at every boot, before
+  the NVIDIA driver loads, through the card's frame-buffer size override in PCI config space (`0x610`). Nothing is
+  flashed, a boot without it returns the stock window, and it needs only Above 4G Decoding. It gave 32 GiB to RTX 3090s
+  whose vBIOS stops at 256 MB ([three-cards.md](three-cards.md#bar1-on-cards-without-resizable-bar)), also on an X99
+  board without any Resizable BAR option (an outside report,
+  [geforce-dynbar1-p2p#5](https://github.com/noon-at-cgn/geforce-dynbar1-p2p/issues/5)), and 8 GB and 4 GB to the
+  Turing cards of the test rig ([turing.md](turing.md)).
+
+geforce-bar1-resize is a fork of [noon-at-cgn's](https://github.com/noon-at-cgn/geforce-bar1-resize), by the author
+of the patched driver. We reviewed its code (no network access, no writes outside its documented files; its optional
+"layout" kernel module stays unused here). The fork is upstream's `5346660` plus our own fixes. Pin the reviewed
+commit:
+
+```bash
+cd ~
+git clone https://github.com/Cinderella-Man/geforce-bar1-resize.git
+cd geforce-bar1-resize
+git checkout 75c7e03e36e88582bed86ba04c5c04ecf3148a0a
+```
+
+Read-only check, one card at a time, with its memory size (`24G` for an RTX 3090, `10G` or `12G` for an RTX 3080, `8G`,
+`6G`, `4G` for the Turing cards):
+
+```bash
+sudo scripts/geforce-bar1-resize check --vram 24G 0000:01:00.0
+```
+
+The card must show six lines starting with `ok` (S1 to S6) and a `PLAN` line: `arm 0x610 VAL=9, resize to 32768 MiB`
+for a 24 GB card (`VAL=8` and 16384 MiB for 10 and 12 GB, `VAL=7` and 8192 MiB for 6 and 8 GB, `VAL=6` and 4096 MiB for
+4 GB), or `resize-only to ...` for a card that already lists the size. A card behind a chipset or other PCIe switch
+also prints `behind a PCIe switch: yes`: on RTX 30 cards the kernel grew the windows by itself
+([three-cards.md](three-cards.md#bar1-on-cards-without-resizable-bar)); Turing cards need
+[turing.md T2](turing.md#t2-add-the-usb-c-pre-step) first.
+
+Install it with the layout module off, dry run first. The installer records each card's memory while the driver runs
+(step 3), so the next boot enlarges it:
+
+```bash
+sudo ./install.sh --dry-run --layout off --enable
+```
+
+```bash
+sudo ./install.sh --layout off --enable --yes
+```
+
+The patched driver needs dynamic BAR1 on every card (step 11b). Let the tool write that for every card, not only for
+those it enlarges through `0x610`:
+
+```bash
+sudo sed -i 's/^DRIVER_OPTION=auto$/DRIVER_OPTION=on/' /etc/geforce-bar1-resize.conf
+sudo geforce-bar1-resize driver-option --write
+```
+
+The resize has to run before the NVIDIA driver loads. On a fresh 26.04 install dracut copies the driver into the
+initramfs (the 615 install does it again), so it loads first, and the resize logs `already bound to nvidia, skip`: do
+[step 16a](#16a-keep-the-nvidia-driver-out-of-the-initramfs) now, before the reboot.
+
+**Turing cards (RTX 20, GTX 16):** add the USB-C pre-step now ([turing.md T2](turing.md#t2-add-the-usb-c-pre-step)).
+
+Reboot and check:
+
+```bash
+sudo reboot
+```
+
+```bash
+journalctl -b -u geforce-bar1-resize --no-pager -o cat | grep -E 'armed and resized|resized to|skip|failed'
+```
+
+Expected, per card: `... armed and resized to 32768 MiB` (or `resized to ...` for a resize-only card). Then the check
+command at the top of this step: every `Region 1` at least the card's memory. And the driver must have started on every
+card with the new window:
+
+```bash
+sudo dmesg | grep -E 'RmInitAdapter failed|kbusVerifyBar2' || echo clean
+```
+
+It must print `clean`. If it prints `kbusVerifyBar2_GM107: ... returned garbage` and `RmInitAdapter failed`, the
+windows moved to addresses the CPU does not pass on to the cards, as on an Intel X79 board in an outside report:
+[troubleshooting](troubleshooting.md#after-the-bar1-resize-every-card-fails-kbusverifybar2_gm107--returned-garbage).
+A machine with many cards may need a larger 64-bit window per root bridge in the BIOS (eight RTX 3090 on a WRX80 board
+needed `ResourceSizeForEachRb`).
 
 ## 5. CUDA Toolkit 13.5
 
@@ -412,10 +509,10 @@ Spaces between the addresses, inside one pair of quotes, never commas.
 
 ### 11b. Driver: dynamic BAR1 for each card (`RMForceStaticBar1=0`)
 
-A stock RTX 3090 with Resizable BAR already has a 32 GiB BAR1, so the upstream helper
-[geforce-bar1-resize](https://github.com/Cinderella-Man/geforce-bar1-resize) is **not** needed to enlarge it. The patch
-does still need `RMForceStaticBar1=0` for each card. Without it the driver keeps static BAR1 and refuses the pair.
-Write the per-card line by hand. Use the file name geforce-bar1-resize would use, because the scripts look for it:
+The patch needs `RMForceStaticBar1=0` for each card. Without it the driver keeps static BAR1 and refuses the pair. If
+you installed geforce-bar1-resize in [step 4b](#4b-a-bar1-at-least-as-large-as-each-cards-memory), it wrote this line
+for every card (`DRIVER_OPTION=on`): only run the `modprobe -c` check below. If every card got its window from the
+BIOS, write the per-card line by hand. Use the file name geforce-bar1-resize would use, because the scripts look for it:
 
 ```bash
 LINE=$(for g in $(lspci -D -d 10de::0300 | awk '{print $1}'); do printf 'pci=%s;RMForceStaticBar1=0;' "$g"; done)

@@ -515,7 +515,7 @@ From an outside report, not reproduced here: four RTX 2080 Ti on an Intel X79 bo
 ([turing.md](turing.md#outside-report-four-rtx-2080-ti-on-an-x79-board)).
 
 **Symptom:** with Turing cards, after geforce-bar1-resize grew the windows at boot
-([turing.md T1-T3](turing.md#t1-install-geforce-bar1-resize-pinned)), the driver fails on every card:
+([procedure.md step 4b](procedure.md#4b-a-bar1-at-least-as-large-as-each-cards-memory), turing.md T1-T3), the driver fails on every card:
 
 ```
 kbusVerifyBar2_GM107: MMUTest BAR0 window offset 0x70e000 returned garbage 0x0

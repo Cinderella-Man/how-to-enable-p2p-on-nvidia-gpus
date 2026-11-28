@@ -39,11 +39,10 @@ Pascal and Volta with NVIDIA's stock driver: [pascal-and-volta.md](pascal-and-vo
 
 ## Before you start
 
-Do [procedure.md](procedure.md) steps 1-10, 11a and **16a**: BIOS, Ubuntu, driver 615, IOMMU, CUDA, the fork, the
-build, `contrib/config.sh`, and the initramfs fix. 16a comes this early on purpose: the resize has to run before the
-NVIDIA driver loads, and on a fresh 26.04 install dracut copies the driver into the initramfs (again with the 615
-install, an outside report found), so it loads first. The resize then logs `already bound to nvidia, skip` and BAR1
-stays at 256 MB. Skip 11b: the resize tool writes that file. Then come back here.
+Do [procedure.md](procedure.md) steps 1-10 and 11a: BIOS, Ubuntu, driver 615, IOMMU, **step 4b** (geforce-bar1-resize,
+which every Turing card needs, with the initramfs fix of step 16a before its reboot), CUDA, the fork, the build and
+`contrib/config.sh`. In step 4b add the USB-C pre-step [T2](#t2-add-the-usb-c-pre-step) before the reboot; T1 and T3
+below show what the test rig's Turing cards printed. Skip 11b: the resize tool writes that file. Then come back here.
 
 Check that your cards are Turing and stuck at 256 MB:
 
@@ -55,24 +54,10 @@ Expected: `TU1xx` in the names, `[size=256M]` and `BAR 1: current size: 256MB, s
 
 ## T1. Install geforce-bar1-resize (pinned)
 
-[geforce-bar1-resize](https://github.com/Cinderella-Man/geforce-bar1-resize) (a fork of
-[noon-at-cgn's](https://github.com/noon-at-cgn/geforce-bar1-resize), by the same author as the patched driver) is used
-here. It enlarges each card's BAR1 at every boot, before the NVIDIA driver loads, by arming a frame-buffer size
-override in the card's PCI config space (`0x610`). Nothing is flashed; a reboot without it returns the stock window.
-We reviewed its code before running it (no network access, no writes outside its documented files; its optional
-"layout" kernel module stays unused here). The fork is upstream's `5346660` plus our own fixes: a card whose disarm
-fails is held from its driver, a warning for P2P forced without static BAR1 on 16 GB RTX 50 cards (with the
-`RMIncreaseRsvdMemorySizeMB` value it needs), registry keys from the kernel command line, and fixes to what `check`
-prints. Pin the reviewed commit:
-
-```bash
-cd ~
-git clone https://github.com/Cinderella-Man/geforce-bar1-resize.git
-cd geforce-bar1-resize
-git checkout 75c7e03e36e88582bed86ba04c5c04ecf3148a0a
-```
-
-Read-only check, one card at a time with its memory size:
+This is [procedure.md step 4b](procedure.md#4b-a-bar1-at-least-as-large-as-each-cards-memory), the same for every card
+whose BAR1 is smaller than its memory: the pinned clone of
+[geforce-bar1-resize](https://github.com/Cinderella-Man/geforce-bar1-resize), the read-only check, the install with
+`DRIVER_OPTION=on`, and step 16a before the reboot. On the test rig the check ran with each card's memory size:
 
 ```bash
 sudo scripts/geforce-bar1-resize check --vram 6G 0000:04:00.0
@@ -85,17 +70,8 @@ sudo scripts/geforce-bar1-resize check --vram 4G 0000:2b:00.0
 Each card must show six lines starting with `ok` (S1 to S6) and a `PLAN` line `arm 0x610 VAL=7, resize to 8192 MiB`
 (6 GB card) or `arm 0x610 VAL=6, resize to 4096 MiB` (4 GB card). An 8 GB card gets `VAL=7` too, a window as large as
 its memory, which was enough for P2P on an RTX 2070 in an outside report. A card behind a chipset or other PCIe switch also
-prints `behind a PCIe switch: yes` and a note that the plain resize usually fails there: T2 is what makes it work.
-
-Install it with the layout module off, dry run first:
-
-```bash
-sudo ./install.sh --dry-run --layout off --enable
-```
-
-```bash
-sudo ./install.sh --layout off --enable --yes
-```
+prints `behind a PCIe switch: yes` and a note that the plain resize usually fails there: T2 is what makes it work, so
+add it before step 4b's reboot.
 
 ## T2. Add the USB-C pre-step
 
@@ -125,6 +101,8 @@ geforce-bar1-resize alone already reached 4 GB on a user's GTX 1650. What T2 add
 resize fails for lack of it: no flashing, no kernel patches and no boot options, even behind a chipset.
 
 ## T3. Reboot and check the windows
+
+The reboot of step 4b, here with the USB-C pre-step:
 
 ```bash
 sudo reboot
