@@ -61,14 +61,15 @@ here. It enlarges each card's BAR1 at every boot, before the NVIDIA driver loads
 override in the card's PCI config space (`0x610`). Nothing is flashed; a reboot without it returns the stock window.
 We reviewed its code before running it (no network access, no writes outside its documented files; its optional
 "layout" kernel module stays unused here). The fork is upstream's `5346660` plus our own fixes: a card whose disarm
-fails is held from its driver, a warning for P2P forced without static BAR1 on 16 GB RTX 50 cards, and fixes to what
-`check` prints. Pin the reviewed commit:
+fails is held from its driver, a warning for P2P forced without static BAR1 on 16 GB RTX 50 cards (with the
+`RMIncreaseRsvdMemorySizeMB` value it needs), registry keys from the kernel command line, and fixes to what `check`
+prints. Pin the reviewed commit:
 
 ```bash
 cd ~
 git clone https://github.com/Cinderella-Man/geforce-bar1-resize.git
 cd geforce-bar1-resize
-git checkout f7896fa9e91710993c08eb116c0cc87a2d4d833d
+git checkout 75c7e03e36e88582bed86ba04c5c04ecf3148a0a
 ```
 
 Read-only check, one card at a time with its memory size:

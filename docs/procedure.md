@@ -24,6 +24,8 @@ ends in `SETUP OK, DATA NOT CHECKED` instead of `ALL PASS`; text only, checked w
 to `4361112` (cards on two root ports of an Intel desktop or laptop CPU are refused: such a CPU does not route peer
 reads; the GA102 cards with passing integrity tests are verified; the original repository's compatibility reports).
 `e067c4a`'s driver change compiles and has not run on a GPU either; on an AMD board or a Xeon it changes nothing.
+Then to `85929ec` (scripts and the integrity test only: a boot install that works on Debian's kernel versions, checks
+that the next boot loads it, and the values a failed transfer read).
 `acd74cf`'s driver change compiles and has not run on a GPU; with the cards on one socket it changes nothing. The whole
 procedure has not been re-run with this pin.
 
@@ -304,7 +306,7 @@ Clone the fork and pin the commit this guide was written against:
 cd ~
 git clone https://github.com/Cinderella-Man/geforce-dynbar1-p2p.git
 cd geforce-dynbar1-p2p
-git checkout 43611128eda058e474cdc616b9c19d4f0fa5ba51
+git checkout 85929ec7ad9fda064f5d08fbc00172d86c5a4a46
 ```
 
 ```bash
@@ -314,9 +316,9 @@ git log --oneline -3
 Expected:
 
 ```
-43611128 Compatibility reports: the GA102 cards with passing integrity tests are verified; the reports and platform limits documented
-e067c4a9 p2p_caps: refuse GPUs on two root ports of an Intel client CPU (no peer reads)
-44562b5f Compatibility reports, the clone and geforce-bar1-resize links point at the Cinderella-Man forks
+85929ec7 contrib: the integrity test prints what a mismatching transfer read, and what it expected
+6a79a2a9 contrib: p2p-check.sh FAILs when modprobe does not resolve a module to the boot install, and says why
+1d38c89b contrib: p2p-install.sh refuses a depmod.d override read after p2p.conf that wins over it
 ```
 
 Is the code safe to load? See [security-review.md](security-review.md): everything in the fork that is not NVIDIA's
@@ -324,7 +326,7 @@ official 615.71.09 source was reviewed, and no malicious code was found.
 
 ## 9. What the fork changes compared to upstream (nothing to do)
 
-The fork's `main` is upstream `ab0ee7d` (upstream `main` as of 2026-11-23) plus twelve commits:
+The fork's `main` is upstream `ab0ee7d` (upstream `main` as of 2026-11-23) plus sixteen commits:
 
 | Commit | Why |
 |---|---|
@@ -340,6 +342,10 @@ The fork's `main` is upstream `ab0ee7d` (upstream `main` as of 2026-11-23) plus 
 | [`44562b5`](https://github.com/Cinderella-Man/geforce-dynbar1-p2p/commit/44562b5f) links | The compatibility-report link, the clone and the geforce-bar1-resize links point at the Cinderella-Man forks, whose issues are open. Text only |
 | [`e067c4a`](https://github.com/Cinderella-Man/geforce-dynbar1-p2p/commit/e067c4a9) Intel client CPUs | An Intel desktop or laptop CPU (Core, and the Xeon E3/E/W-1x00 on the same dies) forwards peer writes between its root ports but not peer reads, and the fork offered reads all the same: in an outside report (Z590, Core i7-11700K, 2x RTX 3090) copies were byte-exact while kernel reads of the other card came back wrong. Such pairs are now refused (`TNS`), as NVIDIA's stock rule effectively does; cards below one PCIe switch and NVIDIA's `ForceP2P` are not. A check added in `p2p_caps.c` (CPU family and model, root port vendor), the same rule in `contrib/chips.sh`, a stand-in test |
 | [`4361112`](https://github.com/Cinderella-Man/geforce-dynbar1-p2p/commit/43611128eda058e474cdc616b9c19d4f0fa5ba51) verified cards | The GA102 cards with passing integrity tests on this driver count as verified (RTX 3080 10/12/20 GB, 3080 Ti, 3080 Ti 20GB, 3090, 3090 Ti), and the original repository's ten compatibility reports are in its README with the platform limits they showed. Scripts' verdict texts and docs |
+| [`2d2f6c6`](https://github.com/Cinderella-Man/geforce-dynbar1-p2p/commit/2d2f6c61) depmod.d kernel field | depmod reads the kernel field of an `override` line as a regular expression, so the `+` of a Debian kernel version (`6.12.115+deb13.1-amd64`) made the boot install's override never apply and the stock modules kept loading (an outside report). `p2p-install.sh` writes the field anchored, with such characters in brackets, and checks that it matches |
+| [`1d38c89`](https://github.com/Cinderella-Man/geforce-dynbar1-p2p/commit/1d38c89b) depmod.d conflicts | `p2p-install.sh` refuses, before changing anything, when another depmod.d file read after its own overrides one of the modules for this kernel (the last override read wins), naming the file and line |
+| [`6a79a2a`](https://github.com/Cinderella-Man/geforce-dynbar1-p2p/commit/6a79a2a9) boot install check | With a boot install, `p2p-check.sh` FAILs when modprobe resolves a module to anything but the installed build, and says why (a later override, its own line not applying, or modules.dep not rebuilt) |
+| [`85929ec`](https://github.com/Cinderella-Man/geforce-dynbar1-p2p/commit/85929ec7ad9fda064f5d08fbc00172d86c5a4a46) integrity test | A failed transfer prints the first and last wrong word as read and as expected (an outside report's failing reads printed no value). Passing output unchanged |
 
 To see the full difference:
 

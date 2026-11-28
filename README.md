@@ -186,7 +186,7 @@ use NVIDIA's stock driver instead: [docs/pascal-and-volta.md](docs/pascal-and-vo
 2. Ubuntu 26.04, then **`nvidia-driver-615-open`**. Not the `595` that `ubuntu-drivers` recommends. Hold the 615
    packages.
 3. Kernel command line `iommu=pt` (IOMMU passthrough; Intel: `intel_iommu=on iommu=pt`). CUDA Toolkit 13.5 (`cuda-toolkit-13-5` only).
-4. Clone the fork (pinned to `4361112`), install `pahole`, run `make modules`.
+4. Clone the fork (pinned to `85929ec`), install `pahole`, run `make modules`.
 5. Set `RMForceStaticBar1=0` for each card in modprobe.d. Set the card addresses and build path in `contrib/config.sh`.
 6. **Disable the `remove` rules in udev's `71-nvidia.rules` and mask `nvidia-persistenced`.** Otherwise udev puts the
    stock driver back right after the swap.

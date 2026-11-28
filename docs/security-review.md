@@ -8,9 +8,10 @@ driver key), on 2026-11-25 to `b70b69c85093fd68d927add3d54bdadc8167c54f` (two mo
 a test, and a counting change in the driver), the same day to `d8f11e2b345d66c1a4c16468188ac142e9e0b017` (two more commits: a P2P
 capability check put back in the driver, and a script message), and on 2026-11-28 to
 `9f803069d60e2aae46baac0bfee2e75fd7e19260` (one more commit: the last line and the `topo` lines `p2p-check.sh` prints), and then
-to `43611128eda058e474cdc616b9c19d4f0fa5ba51`, the commit [procedure.md](procedure.md#8-get-the-patched-driver-source) now pins (three
-more commits: links, a P2P refusal for Intel client CPUs in the driver, and the scripts' verified cards;
-[below](#verdict-no-malicious-code-found)).
+to `43611128eda058e474cdc616b9c19d4f0fa5ba51` (three more commits: links, a P2P refusal for Intel client CPUs in the driver, and the
+scripts' verified cards), and then to `85929ec7ad9fda064f5d08fbc00172d86c5a4a46`, the commit
+[procedure.md](procedure.md#8-get-the-patched-driver-source) now pins (four more commits, scripts and the integrity
+test only; [below](#verdict-no-malicious-code-found)).
 
 ## Scope: only what is not NVIDIA's code
 
@@ -20,10 +21,10 @@ The fork's history contains NVIDIA's official
 code is exactly this diff:
 
 ```bash
-git diff 61dcc93722ecb418bb5f2e00923f05b4b8051dd1 43611128eda058e474cdc616b9c19d4f0fa5ba51
+git diff 61dcc93722ecb418bb5f2e00923f05b4b8051dd1 85929ec7ad9fda064f5d08fbc00172d86c5a4a46
 ```
 
-That is 35 commits by noon-at-cgn (10), dingiv (7), aikitoria (4), the fork owner (11), Duanyll (2) and Ubsefor (1). It
+That is 39 commits by noon-at-cgn (10), dingiv (7), aikitoria (4), the fork owner (15), Duanyll (2) and Ubsefor (1). It
 touches 133 files, about 6,500 lines without docs: roughly 3,000 in the kernel driver, 2,000 in shell scripts, and the
 rest tests and packaging. There are **no binary files** in the diff.
 
@@ -45,7 +46,7 @@ red flags:
   offline.
 - **Hidden tricks:** no zero-width or bidirectional Unicode in the diff. `.github/` holds only issue templates and a
   funding file, no CI workflows.
-- **The fork's own twelve commits** (`9504c3e`, `e5ad35d`, `21f0c27`, `25c929e`, `4c5a97a`, `b70b69c`, `acd74cf`, `d8f11e2`, `9f80306`, `44562b5`, `e067c4a`, `4361112`) are a 4-line `#if` change, a 14-line
+- **The fork's own sixteen commits** (`9504c3e`, `e5ad35d`, `21f0c27`, `25c929e`, `4c5a97a`, `b70b69c`, `acd74cf`, `d8f11e2`, `9f80306`, `44562b5`, `e067c4a`, `4361112`, `2d2f6c6`, `1d38c89`, `6a79a2a`, `85929ec`) are a 4-line `#if` change, a 14-line
   `awk` change, a change to `contrib/p2p-check.sh` (9 lines: it counts the pairs the integrity test ran, and a run that
   tests none is a FAIL) with its stand-in tests, and a 33-line driver change in `osmemdesc.c` and `nvrm_registry.h`.
   That last one reads one registry key, `RMPeerIoMemBar1`, on the GPU that registers I/O memory, and only when it is 1
@@ -66,7 +67,10 @@ red flags:
   CPU's family and model (already read by NVIDIA's code at init) and the two GPUs' root port vendor and address, and a
   refusal of the pair in `p2pGetCapsStatus` when both GPUs sit on different root ports of an Intel client CPU, unless
   NVIDIA's `ForceP2P` is set; it adds a check and removes none, with no I/O, ioctls or privileges. `4361112` changes the
-  scripts' list of verified cards and their texts, with the tests and docs.
+  scripts' list of verified cards and their texts, with the tests and docs. `2d2f6c6`, `1d38c89` and `6a79a2a` change how
+  `p2p-install.sh` writes and checks its depmod.d file and what `p2p-check.sh` checks (read-only: `modinfo`, the
+  depmod.d files); `85929ec` changes what the integrity test prints on a mismatch (a counter and a copy of the wrong
+  words in its own buffers). No network access, no new writes outside the files they already manage.
 
 What was **not** covered: the correctness of the new locking and refcounting (bugs there would mean instability, not
 malice), and the external `geforce-bar1-resize` tool, which only the Turing steps use; [turing.md](turing.md#t1-install-geforce-bar1-resize-pinned)
