@@ -266,8 +266,8 @@ Do the boot install ([procedure.md step 16b](procedure.md#16b-install-and-reboot
 cd ~/geforce-dynbar1-p2p && sudo contrib/p2p-check.sh
 ```
 
-Expected: `opted in (on, TU104 + TU116: RMDynBar1P2PEnable=1; ...)` and `ALL PASS`; `nvidia-smi topo -p2p r` shows
-`OK`. With the shim, `p2p_access` prints `YES`; without it, `NO` (as it should).
+Expected: `opted in (on, TU104 + TU116: RMDynBar1P2PEnable=1; ...)` and `SETUP OK, DATA NOT CHECKED` (no data moved:
+the integrity test above checked the data); `nvidia-smi topo -p2p r` shows `OK`, P2P offered. With the shim, `p2p_access` prints `YES`; without it, `NO` (as it should).
 
 ## Using it
 
@@ -388,7 +388,7 @@ From an outside report by [gordan-bobic](https://github.com/gordan-bobic), not r
   sized their windows to 289 MiB). Its optional layout module rearranged them, and every card got a 32 GiB BAR1
   through `0x610` (the frame-buffer size override of T1; it sets the window size and has nothing to do with the
   path the data takes). No BIOS change was needed: each socket's 64-bit range is 128 GiB.
-- **Peer access** on all ten pairs with that build (`nvidia-smi topo -p2p r` and `w`: `OK`).
+- **P2P offered** on all ten pairs with that build (`nvidia-smi topo -p2p r` and `w`: `OK`); the data below.
 - **NVLink pair:** 60.8 GiB copied byte-exact in 192 cases, about 38 GB/s on 256 MiB copies. NVLink is not PCIe P2P:
   NVIDIA's stock driver offers it too.
 - **Two cards on two sockets:** 246 of 252 cases, every one byte-exact both ways, up to 4 GiB, then the test's time

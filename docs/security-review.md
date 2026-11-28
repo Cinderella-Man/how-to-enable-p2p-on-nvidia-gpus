@@ -5,9 +5,10 @@ Before loading a third-party kernel driver as root, it is worth knowing what is 
 `e5ad35de7fe517ffa85ff6d057777be7cb9ff465`, done on 2026-11-23, extended on 2026-11-24 to
 `25c929e8cfebe69f98fd07267aa28cab52b9a6b8` (two more commits: a change to one script and its tests, and an opt-in
 driver key), on 2026-11-25 to `b70b69c85093fd68d927add3d54bdadc8167c54f` (two more commits: two script helpers with
-a test, and a counting change in the driver), and the same day to `d8f11e2b345d66c1a4c16468188ac142e9e0b017`, the
-commit [procedure.md](procedure.md#8-get-the-patched-driver-source) now pins (two more commits: a P2P capability
-check put back in the driver, and a script message; [below](#verdict-no-malicious-code-found)).
+a test, and a counting change in the driver), the same day to `d8f11e2b345d66c1a4c16468188ac142e9e0b017` (two more commits: a P2P
+capability check put back in the driver, and a script message), and on 2026-11-28 to
+`9f803069d60e2aae46baac0bfee2e75fd7e19260`, the commit [procedure.md](procedure.md#8-get-the-patched-driver-source) now pins (one
+more commit: the last line and the `topo` lines `p2p-check.sh` prints; [below](#verdict-no-malicious-code-found)).
 
 ## Scope: only what is not NVIDIA's code
 
@@ -17,10 +18,10 @@ The fork's history contains NVIDIA's official
 code is exactly this diff:
 
 ```bash
-git diff 61dcc93722ecb418bb5f2e00923f05b4b8051dd1 d8f11e2b345d66c1a4c16468188ac142e9e0b017
+git diff 61dcc93722ecb418bb5f2e00923f05b4b8051dd1 9f803069d60e2aae46baac0bfee2e75fd7e19260
 ```
 
-That is 31 commits by noon-at-cgn (10), dingiv (7), aikitoria (4), the fork owner (7), Duanyll (2) and Ubsefor (1). It
+That is 32 commits by noon-at-cgn (10), dingiv (7), aikitoria (4), the fork owner (8), Duanyll (2) and Ubsefor (1). It
 touches 133 files, about 6,500 lines without docs: roughly 3,000 in the kernel driver, 2,000 in shell scripts, and the
 rest tests and packaging. There are **no binary files** in the diff.
 
@@ -42,7 +43,7 @@ red flags:
   offline.
 - **Hidden tricks:** no zero-width or bidirectional Unicode in the diff. `.github/` holds only issue templates and a
   funding file, no CI workflows.
-- **The fork's own eight commits** (`9504c3e`, `e5ad35d`, `21f0c27`, `25c929e`, `4c5a97a`, `b70b69c`, `acd74cf`, `d8f11e2`) are a 4-line `#if` change, a 14-line
+- **The fork's own nine commits** (`9504c3e`, `e5ad35d`, `21f0c27`, `25c929e`, `4c5a97a`, `b70b69c`, `acd74cf`, `d8f11e2`, `9f80306`) are a 4-line `#if` change, a 14-line
   `awk` change, a change to `contrib/p2p-check.sh` (9 lines: it counts the pairs the integrity test ran, and a run that
   tests none is a FAIL) with its stand-in tests, and a 33-line driver change in `osmemdesc.c` and `nvrm_registry.h`.
   That last one reads one registry key, `RMPeerIoMemBar1`, on the GPU that registers I/O memory, and only when it is 1
@@ -57,7 +58,9 @@ red flags:
   `p2pGetCapsStatus` (`p2p_caps.c`): two cards on two Intel CPU sockets get no P2P, unless NVIDIA's `ForceP2P` key is
   set; plus the same test in `contrib/chips.sh` and a stand-in test. It reads one existing registry key and adds a check
   rather than removing one. `d8f11e2` changes what `p2p-check.sh --integrity` prints after a time-out (13 lines; it
-  runs the test binary's host-only `--selftest` to count the planned cases), with a stand-in test.
+  runs the test binary's host-only `--selftest` to count the planned cases), with a stand-in test. `9f80306` changes
+  only what `p2p-check.sh` prints (its last line without `--integrity`, and its `topo` lines), with its stand-in tests
+  and a README comment.
 
 What was **not** covered: the correctness of the new locking and refcounting (bugs there would mean instability, not
 malice), and the external `geforce-bar1-resize` tool, which only the Turing steps use; [turing.md](turing.md#t1-install-geforce-bar1-resize-pinned)

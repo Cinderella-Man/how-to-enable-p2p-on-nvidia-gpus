@@ -19,8 +19,10 @@ The fork's pin has moved since those runs: to `25c929e` (an opt-in driver key, o
 `b70b69c` (two fixes from an outside report, [step 9](#9-what-the-fork-changes-compared-to-upstream-nothing-to-do)),
 tested on three RTX 3090s on another machine as a trial load ([three-cards.md](three-cards.md)), and then to `d8f11e2`
 (two more from a second outside report: cards on two Intel CPU sockets are refused as in NVIDIA's own driver, and the
-integrity test tells a slow pair from a hung one). `acd74cf`'s driver change compiles and has not run on a GPU; with
-the cards on one socket it changes nothing. The whole procedure has not been re-run with this pin.
+integrity test tells a slow pair from a hung one), and on 2026-11-28 to `9f80306` (`p2p-check.sh` without `--integrity`
+ends in `SETUP OK, DATA NOT CHECKED` instead of `ALL PASS`; text only, checked with the fork's stand-in tests).
+`acd74cf`'s driver change compiles and has not run on a GPU; with the cards on one socket it changes nothing. The whole
+procedure has not been re-run with this pin.
 
 Run everything below over **SSH** from another machine. Step 12 stops the desktop, because the GPUs must be idle while
 the modules are swapped.
@@ -292,7 +294,7 @@ Clone the fork and pin the commit this guide was written against:
 cd ~
 git clone https://github.com/Cinderella-Man/geforce-dynbar1-p2p.git
 cd geforce-dynbar1-p2p
-git checkout d8f11e2b345d66c1a4c16468188ac142e9e0b017
+git checkout 9f803069d60e2aae46baac0bfee2e75fd7e19260
 ```
 
 ```bash
@@ -302,9 +304,9 @@ git log --oneline -3
 Expected:
 
 ```
+9f803069 contrib: p2p-check.sh says SETUP OK, DATA NOT CHECKED unless --integrity checked the data
 d8f11e2b contrib: p2p-check.sh --integrity tells a slow pair from a hung one
 acd74cf6 p2p_caps: keep stock's refusal of GPUs on two Intel CPU sockets (I/O hubs)
-b70b69c8 nv_gpu_ops: count the dynamic BAR1 peer budget per remote GPU
 ```
 
 Is the code safe to load? See [security-review.md](security-review.md): everything in the fork that is not NVIDIA's
@@ -312,7 +314,7 @@ official 615.71.09 source was reviewed, and no malicious code was found.
 
 ## 9. What the fork changes compared to upstream (nothing to do)
 
-The fork's `main` is upstream `ab0ee7d` (upstream `main` as of 2026-11-23) plus eight commits:
+The fork's `main` is upstream `ab0ee7d` (upstream `main` as of 2026-11-23) plus nine commits:
 
 | Commit | Why |
 |---|---|
@@ -324,6 +326,7 @@ The fork's `main` is upstream `ab0ee7d` (upstream `main` as of 2026-11-23) plus 
 | [`b70b69c`](https://github.com/Cinderella-Man/geforce-dynbar1-p2p/commit/b70b69c85093fd68d927add3d54bdadc8167c54f) peer budget per card | With three or more cards and peer access between all of them, each card could map only one card's BAR1 of all the others' memory together ([troubleshooting](troubleshooting.md#three-or-more-cards-cudamalloc-runs-out-of-memory-with-peer-access-between-all-of-them)). Now it counts per other card, and a refused allocation leaves a line in the kernel log. With two cards nothing changes (each card has one other). Tested on three RTX 3090s ([three-cards.md](three-cards.md#peer-memory-old-and-new-build)). |
 | [`acd74cf`](https://github.com/Cinderella-Man/geforce-dynbar1-p2p/commit/acd74cf67bfe935c08c2b7855243d030a667f0dc) two CPU sockets | NVIDIA's driver refuses P2P between cards on two Intel CPU sockets of the Xeon E5/E7 generations up to v4 (`TNS`): it is slower there than copying through host memory. The patched driver skipped that check along with the ones it has to skip for GeForce cards, and an outside report measured 0.23 GB/s between sockets ([troubleshooting](troubleshooting.md#two-cpu-sockets-p2p-works-but-slower-than-copying-through-host-memory)). Now it keeps it, and `p2p-check.sh --pairs` says why such a pair is not supported. Cards on one socket: no change. Compiles; not run on a GPU. |
 | [`d8f11e2`](https://github.com/Cinderella-Man/geforce-dynbar1-p2p/commit/d8f11e2b345d66c1a4c16468188ac142e9e0b017) slow pair | When the integrity test reaches its time limit for a pair but every case so far was byte-exact, `p2p-check.sh --integrity` now says `incomplete` with a larger limit to try, instead of "the GPUs may be wedged", and goes on to the next pair ([troubleshooting](troubleshooting.md#p2p-checksh---integrity-times-out-on-a-slow-pair-every-case-clean)). Only the script and its tests change. |
+| [`9f80306`](https://github.com/Cinderella-Man/geforce-dynbar1-p2p/commit/9f803069d60e2aae46baac0bfee2e75fd7e19260) no `ALL PASS` without a data check | `p2p-check.sh` without `--integrity` moves no data, but a clean run ended in `ALL PASS`, which reads as "P2P works" while `nvidia-smi topo -p2p r`'s `OK` only says the driver offers it ([`OK` is not proof](../README.md#ok-is-not-proof)). Such a run now ends in `SETUP OK, DATA NOT CHECKED`, its `topo` lines say `OK (P2P offered; no data check)`, and `ALL PASS` comes only from `--integrity`. Same exit status. Text only, with its stand-in tests |
 
 To see the full difference:
 
@@ -670,7 +673,9 @@ After the reboot:
 cd ~/geforce-dynbar1-p2p && sudo contrib/p2p-check.sh
 ```
 
-The exit status is the number of FAIL lines. It must be 0 and the last line `ALL PASS`. Then run the srcversion loop
+The exit status is the number of FAIL lines. It must be 0 and the last line `SETUP OK, DATA NOT CHECKED: ...`: this
+check moves no data, it shows that the boot loaded the build and the driver offers P2P where it should (`ALL PASS`
+comes only from `--integrity`, step 14). Then run the srcversion loop
 from step 13, `nvidia-smi topo -p2p r`, and `~/how-to-enable-p2p-on-nvidia-gpus/tools/p2p_access` again. `sudo dmesg | grep -c 'loading NVIDIA UNIX'`
 must now be `1`: the patched build is loaded at boot, and nothing is swapped.
 
@@ -693,7 +698,8 @@ sudo reboot
 ```
 
 Verified on the test rig. After this reboot the patched build still loaded at boot, `nvidia-persistenced` ran next to
-it, the desktop came up on the patched driver, and `p2p-check.sh` and the full integrity test both ended in `ALL PASS`.
+it, the desktop came up on the patched driver, `p2p-check.sh` had no FAIL line, and the full integrity test ended in
+`ALL PASS`.
 Redo step 12 before any future live swap.
 
 ## 17. Kernel and driver updates (NOT YET VERIFIED)
