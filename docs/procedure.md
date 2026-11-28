@@ -523,7 +523,8 @@ Tailscale SSH also log your own commands that contain the text.)
 nvidia-smi topo -p2p r
 ```
 
-Expected: `OK` between the two GPUs (instead of `GNS`).
+Expected: `OK` between the two GPUs (instead of `GNS`). `OK` says only that the driver offers P2P for the pair, not
+that the data arrives: step 14 checks that ([cases where `OK` was wrong](../README.md#ok-is-not-proof)).
 
 **Power and clock settings.** The swap unloads the driver, and every setting made with `nvidia-smi` since boot goes
 with it: power limits (`-pl`), locked clocks (`-lgc`), persistence mode. With `nvidia-persistenced` masked (12b), a

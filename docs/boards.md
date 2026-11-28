@@ -106,8 +106,8 @@ every pair. On an Intel CPU NCCL uses no P2P through the CPU (two CPU slots, or 
    machine (AMD) and the P40 machine (Intel, outside report) lost data silently.
 2. **The route and the links**: `nvidia-smi topo -m`, the link check above, and with P2P enabled `nvidia-smi topo -p2p
    r` must show `OK`. `OK` is not proof: between two cards behind one chipset it showed `OK` and every write was lost,
-   and so did a 16 GB RTX 50 card without static BAR1
-   ([troubleshooting](troubleshooting.md#rtx-50-with-16-gb-ok-and-peer-access-but-copies-lose-their-data)).
+   and so did a 16 GB RTX 50 card without static BAR1; every case so far is in the README's
+   [`OK` is not proof](../README.md#ok-is-not-proof).
    Find where each card hangs (`lspci -tv`) and run step 3 on every pair.
 3. **The integrity test**, [procedure step 14](procedure.md#14-integrity-test): `ALL PASS` or nothing. It checks writes
    and reads byte by byte, so it catches lost writes and reads that do not work, as on the B460.

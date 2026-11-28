@@ -11,7 +11,8 @@ modules** for a patched build of the same version:
 [Cinderella-Man/geforce-dynbar1-p2p](https://github.com/Cinderella-Man/geforce-dynbar1-p2p).
 That is a fork of [noon-at-cgn/geforce-dynbar1-p2p](https://github.com/noon-at-cgn/geforce-dynbar1-p2p) (615.71.09 plus
 a dynamic BAR1 P2P patch series) with the two fixes Ubuntu 26.04 / Linux 7.0 needs. The userspace driver (libcuda,
-nvidia-smi) stays Ubuntu's stock package. Copies then go card to card.
+nvidia-smi) stays Ubuntu's stock package. Copies then go card to card. Check that they arrive: `nvidia-smi topo -p2p
+r` showing `OK` is not proof ([why](#ok-is-not-proof)).
 
 **Running one model across several cards with llama.cpp?** Build llama.cpp with NCCL first: that is the biggest single
 step, with or without P2P (three RTX 3090s: 348 -> 1,366 tokens/s on prompts through host RAM, 1,695 with P2P).
@@ -43,6 +44,33 @@ Whatever the cards, the **motherboard** decides whether the traffic gets through
 is best, a chipset slot works with limits, cheap PCIe switches do not work, and on a server with several CPU sockets
 the cards that exchange data belong on one socket. What is known per board, and how to check
 yours: [docs/boards.md](docs/boards.md).
+
+## `OK` is not proof
+
+`nvidia-smi topo -p2p r` showing `OK` (and `cudaDeviceCanAccessPeer` = 1) means only that the driver offers P2P for
+that pair. It does not mean the data arrives, nor that P2P is faster than going through host RAM. So far it was wrong
+in all of these cases, most of them without any error:
+
+| `OK`, but | When | Seen on |
+|---|---|---|
+| every write is lost | both cards behind the same chipset | Intel Z390 (outside report), AMD B550 ([troubleshooting](docs/troubleshooting.md#nvidia-smi-topo--p2p-r-says-ok-but-nothing-arrives-between-two-cards)) |
+| copies are lost or blocked | the IOMMU translating addresses instead of passthrough | two Tesla V100s on an AMD B450, four Tesla P40s on an Intel X99 (outside report) ([troubleshooting](docs/troubleshooting.md#peer-copies-faster-than-the-link-allows-or-io_page_fault-from-nvidia)) |
+| every copy is lost, at a speed no link can carry | a 16 GB RTX 50 card without static BAR1 | RTX 5060 Ti 16 GB (outside report) ([troubleshooting](docs/troubleshooting.md#rtx-50-with-16-gb-ok-and-peer-access-but-copies-lose-their-data)) |
+| every read returns `0xffffffff`, writes work | one card behind an Intel B460 chipset | 2x RTX 4060 Ti (outside report) ([troubleshooting](docs/troubleshooting.md#peer-reads-return-0xffffffff-writes-work)) |
+| the first copy loses all its data | cards behind a mining board's PCIe switches, P2P forced on | 9x P106-090 ([pascal-and-volta](docs/pascal-and-volta.md#the-test-on-a-mining-box-the-driver-said-yes-the-hardware-said-no)) |
+| byte-exact, but about 25 times slower than through host RAM | cards on two CPU sockets of a Xeon E7 v4 server | 5x RTX 2080 Ti (outside report) ([troubleshooting](docs/troubleshooting.md#two-cpu-sockets-p2p-works-but-slower-than-copying-through-host-memory)) |
+| CUDA gives no peer access at all | two different Turing chips; two GPU generations | RTX 2060 + GTX 1650 SUPER, RTX 2060 + RTX 3060 ([turing.md T5](docs/turing.md#t5-cuda-and-the-integrity-test), [mixed-generations](docs/mixed-generations.md#why-cuda-says-no)) |
+
+What does prove it:
+
+- **The data, checked.** The integrity test ([procedure step 14](docs/procedure.md#14-integrity-test): `ALL PASS`)
+  compares every byte, both directions, many sizes. With another driver or patch,
+  [`tools/p2p_patterns.cu`](tools/p2p_patterns.cu) needs only `nvcc`: `r01` and `r10` (reads), `cewbi` and `cerbi`
+  (copies both ways), each ending with `DATA OK` or `DATA WRONG`.
+- **A speed the link can carry.** A copy faster than the slower card's PCIe link allows means the data is not arriving
+  (6.6 GB/s into a 2 GB/s link on the V100s, 69-72 GB/s on the RTX 5060 Ti).
+- **For NCCL, PyTorch and vLLM, the `via` line.** NCCL has its own rule and can still go through host RAM
+  ([troubleshooting](docs/troubleshooting.md#nccl-goes-via-shm-although-cuda-offers-peer-access)).
 
 <a id="when-p2p-is-not-possible-hidden-gem"></a>
 
