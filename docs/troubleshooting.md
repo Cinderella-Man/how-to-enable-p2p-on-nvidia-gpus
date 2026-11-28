@@ -672,8 +672,22 @@ settings, or put them in `RESTORE_CMD`
 
 **Another cause: a card on a PCIe x1 riser.** A GTX 1650 SUPER on a USB-cable x1 riser (the mining kind) fell off the
 bus about 4 seconds after the driver loaded, at every boot, with the stock driver too: the card comes up at 2.5 GT/s
-and the driver raises the link speed, which the riser did not carry. Held at 2.5 GT/s before the driver loads, it ran
-([drmshare's riser script](https://github.com/Cinderella-Man/drmshare/blob/main/docs/troubleshooting.md#a-card-on-a-pcie-x1-riser-falls-off-the-bus-xid-79-when-the-driver-starts-it)).
+and the driver raises the link speed, which the riser did not carry. Held at 2.5 GT/s before the driver loads, it ran,
+at about 0.2 GB/s each way. A one-shot service does that: before the driver loads, it sets the Target Link Speed of the
+port above every NVIDIA card on an x1 link to 2.5 GT/s and retrains the link
+([`tools/riser/x1-riser-gen1.sh`](../tools/riser/x1-riser-gen1.sh) with
+[`tools/riser/x1-riser-gen1.service`](../tools/riser/x1-riser-gen1.service)):
+
+```bash
+sudo install -m 0755 tools/riser/x1-riser-gen1.sh /usr/local/sbin/x1-riser-gen1
+sudo install -m 0644 tools/riser/x1-riser-gen1.service /etc/systemd/system/
+sudo systemctl enable x1-riser-gen1.service
+```
+
+It only touches cards on an x1 link; undo with `sudo systemctl disable x1-riser-gen1.service`. The NVIDIA driver must
+not be in the initramfs ([procedure step 16a](procedure.md#16a-keep-the-nvidia-driver-out-of-the-initramfs)), or it
+loads before the service runs. `Environment=X1_RISER_SPEED=2` in the service caps at 5 GT/s instead.
+
 Risers differ: the RTX A2000 in the outside report above ran at 8 GT/s on its x1 riser, also a USB-cable one, but that
 link logged correctable errors (`RxErr`, `BadTLP` in `lspci -vvv`'s `CESta`, on the card and its port) while the other
 links were clean: no margin left. A riser link that logs correctable errors under load is worth capping a step lower. The test rig's riser showed both

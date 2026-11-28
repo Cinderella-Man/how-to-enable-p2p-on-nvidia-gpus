@@ -1,0 +1,13 @@
+[Unit]
+Description=Keep NVIDIA cards on PCIe x1 risers at 2.5 GT/s (before the NVIDIA driver loads)
+DefaultDependencies=no
+After=systemd-remount-fs.service
+Before=systemd-modules-load.service systemd-udev-trigger.service nvidia-persistenced.service display-manager.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/x1-riser-gen1
+
+[Install]
+WantedBy=sysinit.target
