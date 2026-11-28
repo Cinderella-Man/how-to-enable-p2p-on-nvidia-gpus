@@ -32,7 +32,7 @@ Pascal and Volta with NVIDIA's stock driver: [pascal-and-volta.md](pascal-and-vo
 
 | | RTX 3080 / 3090 (GA102) | Turing |
 |---|---|---|
-| Memory window (BAR1) | Resizable BAR from the firmware: 16 or 32 GB | **256 MB**; the cards never got NVIDIA's Resizable BAR. Grown at every boot by [geforce-bar1-resize](https://github.com/noon-at-cgn/geforce-bar1-resize) plus a pre-step from this repository (T1-T3) |
+| Memory window (BAR1) | Resizable BAR from the firmware: 16 or 32 GB | **256 MB**; the cards never got NVIDIA's Resizable BAR. Grown at every boot by [geforce-bar1-resize](https://github.com/Cinderella-Man/geforce-bar1-resize) plus a pre-step from this repository (T1-T3) |
 | P2P in the patched driver | on by default | **opt-in** per card: trial load, integrity test, then `p2p-enable.sh` (T4-T6) |
 | Integrity test | full run, 264 cases | cards with 6 GB or less skip the 4 GB sizes, so `p2p-enable.sh` needs `--skip-integrity` |
 | CUDA | peer access as soon as the driver offers it | for **two different chips** (here TU104 + TU116) CUDA refuses; a small preload shim gets around it (T5). Two identical chips do not need it |
@@ -55,17 +55,20 @@ Expected: `TU1xx` in the names, `[size=256M]` and `BAR 1: current size: 256MB, s
 
 ## T1. Install geforce-bar1-resize (pinned)
 
-[geforce-bar1-resize](https://github.com/noon-at-cgn/geforce-bar1-resize) is from the same author as the patched
-driver. It enlarges each card's BAR1 at every boot, before the NVIDIA driver loads, by arming a frame-buffer size
+[geforce-bar1-resize](https://github.com/Cinderella-Man/geforce-bar1-resize) (a fork of
+[noon-at-cgn's](https://github.com/noon-at-cgn/geforce-bar1-resize), by the same author as the patched driver) is used
+here. It enlarges each card's BAR1 at every boot, before the NVIDIA driver loads, by arming a frame-buffer size
 override in the card's PCI config space (`0x610`). Nothing is flashed; a reboot without it returns the stock window.
 We reviewed its code before running it (no network access, no writes outside its documented files; its optional
-"layout" kernel module stays unused here). Pin the reviewed commit:
+"layout" kernel module stays unused here). The fork is upstream's `5346660` plus our own fixes: a card whose disarm
+fails is held from its driver, a warning for P2P forced without static BAR1 on 16 GB RTX 50 cards, and fixes to what
+`check` prints. Pin the reviewed commit:
 
 ```bash
 cd ~
-git clone https://github.com/noon-at-cgn/geforce-bar1-resize.git
+git clone https://github.com/Cinderella-Man/geforce-bar1-resize.git
 cd geforce-bar1-resize
-git checkout 53466608917ff5d8c660eefcee7c7e6c4261ef1b
+git checkout f7896fa9e91710993c08eb116c0cc87a2d4d833d
 ```
 
 Read-only check, one card at a time with its memory size:

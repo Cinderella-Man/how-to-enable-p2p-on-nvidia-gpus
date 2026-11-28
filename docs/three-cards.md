@@ -48,7 +48,7 @@ for d in $(lspci -D -d 10de::0300 | awk '{print $1}'); do echo "$d $(sudo lspci 
 ```
 
 A card that lists `32GB` gets it from the BIOS setting. A card that does not would need a vBIOS update from its maker.
-Instead, [geforce-bar1-resize](https://github.com/noon-at-cgn/geforce-bar1-resize), the tool the Turing cards use
+Instead, [geforce-bar1-resize](https://github.com/Cinderella-Man/geforce-bar1-resize), the tool the Turing cards use
 ([turing.md T1](turing.md#t1-install-geforce-bar1-resize-pinned)), gave all three cards 32 GiB: by a plain resize on
 `0b:00.0`, and through the frame-buffer size override in config space (`0x610`) on the other two, including the card
 behind the chipset. Its read-only check shows the route per card:

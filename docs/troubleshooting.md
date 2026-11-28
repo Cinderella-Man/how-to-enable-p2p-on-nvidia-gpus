@@ -625,7 +625,7 @@ cards: BAR1 16384 MiB) it does not fit, and the driver does not turn it on by it
 
 **Fix:** force static BAR1 with `RMForceStaticBar1=1`, together with `RMIncreaseRsvdMemorySizeMB` so the mapping fits
 (drivers 610 and later; without it the card fails to initialize). The value comes from a formula in
-geforce-bar1-resize's [driver-option.md](https://github.com/noon-at-cgn/geforce-bar1-resize/blob/main/docs/driver-option.md#static-bar1-on-a-card-whose-bar1-equals-vram);
+geforce-bar1-resize's [driver-option.md](https://github.com/Cinderella-Man/geforce-bar1-resize/blob/main/docs/driver-option.md#static-bar1-on-a-card-whose-bar1-equals-vram);
 in the report, `24` on 620.70.06 made the copies correct both ways, at about 48 MiB of memory per card. Then check the
 data: the integrity test, or [`tools/p2p_patterns.cu`](../tools/p2p_patterns.cu) (`cewbi` and `cerbi`, each ending
 with `DATA OK` or `DATA WRONG`), which needs only `nvcc`. Seen on one card model; other 16 GB RTX 50 cards (an RTX 5080,

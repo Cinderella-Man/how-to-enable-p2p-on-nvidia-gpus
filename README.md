@@ -266,7 +266,8 @@ cards are opt-in. Use at your own risk, run the integrity test on your own pair,
   scripts, which [the fork](https://github.com/Cinderella-Man/geforce-dynbar1-p2p) builds on. It in
   turn builds on the P2P work of tinygrad, aikitoria, Duanyll and dingiv (see its README).
 - [noon-at-cgn/geforce-bar1-resize](https://github.com/noon-at-cgn/geforce-bar1-resize): enlarges the Turing cards'
-  memory window at every boot ([docs/turing.md](docs/turing.md)).
+  memory window at every boot ([docs/turing.md](docs/turing.md)); this guide uses [the fork](https://github.com/Cinderella-Man/geforce-bar1-resize), which carries
+  fixes since.
 - [aikitoria/open-gpu-kernel-modules](https://github.com/aikitoria/open-gpu-kernel-modules): the `libcuda` patch
   script that lets CUDA pair two GPU generations ([docs/mixed-generations.md](docs/mixed-generations.md)).
 - Christian König and the [amdgpu](https://sources.debian.org/src/linux/6.19.6-2/drivers/gpu/drm/amd/amdgpu/amdgpu_dma_buf.c)

@@ -394,7 +394,7 @@ Spaces between the addresses, inside one pair of quotes, never commas.
 ### 11b. Driver: dynamic BAR1 for each card (`RMForceStaticBar1=0`)
 
 A stock RTX 3090 with Resizable BAR already has a 32 GiB BAR1, so the upstream helper
-[geforce-bar1-resize](https://github.com/noon-at-cgn/geforce-bar1-resize) is **not** needed to enlarge it. The patch
+[geforce-bar1-resize](https://github.com/Cinderella-Man/geforce-bar1-resize) is **not** needed to enlarge it. The patch
 does still need `RMForceStaticBar1=0` for each card. Without it the driver keeps static BAR1 and refuses the pair.
 Write the per-card line by hand. Use the file name geforce-bar1-resize would use, because the scripts look for it:
 
