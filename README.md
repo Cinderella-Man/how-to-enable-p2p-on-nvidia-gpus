@@ -17,6 +17,9 @@ nvidia-smi) stays Ubuntu's stock package. Copies then go card to card.
 step, with or without P2P (three RTX 3090s: 348 -> 1,366 tokens/s on prompts through host RAM, 1,695 with P2P).
 [llama.cpp: build it with NCCL](#llamacpp-build-it-with-nccl).
 
+**Field reports and problems** with CUDA P2P go to [this repository's issues](https://github.com/Cinderella-Man/how-to-enable-p2p-on-nvidia-gpus/issues);
+those about DRMShare, its NCCL fork or the llama.cpp copy to [DRMShare's](https://github.com/Cinderella-Man/drmshare/issues).
+
 ## Which path is yours
 
 | Your two cards | Chip | Driver | Follow | Tested here |
@@ -25,7 +28,7 @@ step, with or without P2P (three RTX 3090s: 348 -> 1,366 tokens/s on prompts thr
 | RTX 20 series, GTX 16 series | Turing | the patched driver, plus a bigger memory window at every boot and P2P switched on per card | [procedure.md](docs/procedure.md), then [turing.md](docs/turing.md) | **works, experimental**: RTX 2060 + GTX 1650 SUPER; outside reports: 4x RTX 2080 Ti on an Intel X79 board, 5x RTX 2080 Ti 22 GB on a four-socket server |
 | GTX 10 series, P106 / P104 mining cards | Pascal | NVIDIA's stock driver 580, no patch | [pascal-and-volta.md](docs/pascal-and-volta.md) | **verified**: 2x P106-090 |
 | Tesla V100 | Volta | NVIDIA's stock driver 580, no patch | [pascal-and-volta.md](docs/pascal-and-volta.md) | **verified**: 2x V100 PCIe 32 GB, on another machine |
-| Two generations: RTX 2060 + RTX 3060 | Turing + Ampere | the patched driver; then a patched copy of `libcuda` (CUDA peer access), or the fork's key for writes through the other card's memory window | [procedure.md](docs/procedure.md), [turing.md](docs/turing.md) T1-T3, then [mixed-generations.md](docs/mixed-generations.md) | **works, experimental**: RTX 2060 + RTX 3060 |
+| Two generations: RTX 2060 + RTX 3060 | Turing + Ampere | the patched driver; then a patched copy of `libcuda` (CUDA peer access), or the fork's key for writes through the other card's memory window | [procedure.md](docs/procedure.md), [turing.md](docs/turing.md) T1-T3, then [mixed-generations.md](docs/mixed-generations.md) | **works, experimental**: RTX 2060 + RTX 3060; outside report: RTX 2070 + RTX 3060 (CUDA peer access) |
 | RTX 3050 to 3070 Ti, RTX 40 series | other Ampere chips, Ada | the patched driver; P2P opt-in per card upstream | [procedure.md](docs/procedure.md), then upstream's [opt-in](https://github.com/Cinderella-Man/geforce-dynbar1-p2p#opt-in-for-other-chips) | not tested |
 | RTX 50 series | Blackwell | upstream leaves these to NVIDIA's own driver, which offers BAR1 P2P (untested upstream too) | upstream's [README](https://github.com/Cinderella-Man/geforce-dynbar1-p2p) | not tested |
 
@@ -83,6 +86,13 @@ copies one after another. It needs no patched driver and works through host RAM 
 3. **Run with `-sm tensor`.** On Linux llama.cpp then adds up through NCCL by default (`GGML_CUDA_ALLREDUCE` picks
    another way). With P2P on an AMD CPU and three or more cards, NCCL needs `NCCL_P2P_LEVEL=SYS`
    ([troubleshooting](docs/troubleshooting.md#nccl-goes-via-shm-although-cuda-offers-peer-access)).
+   **Cards with different amounts of memory need `-ts` too**: `-sm tensor` gives every card an equal share of each
+   layer (the default layer split divides by free memory instead), so the smaller card fills up first, and llama.cpp's
+   automatic fit (`--fit`, on by default in `llama-server`) does not handle `-sm tensor`. Split by memory, in the order
+   llama.cpp lists the devices when it starts: `-ts 12/8` for a 12 GB card first and an 8 GB card second (`llama-bench`
+   separates the numbers with `/`, `llama-server` with `,`). An outside report with an RTX 3060 12 GB and an RTX 2070
+   8 GB ran out of memory on the 8 GB card with Qwen3-30B-A3B (17.3 GiB) at the even split
+   ([drmshare#1](https://github.com/Cinderella-Man/drmshare/issues/1)); a split by memory was not tried there.
 
 NCCL matters most from three cards on. With two cards llama.cpp's own two-card all-reduce comes close (two RTX 3090s
 on CPU lanes, prompt 2048 / generation: 1,668 / 42.8 without NCCL, 1,818 / 42.1 with NCCL and P2P). And only
@@ -101,8 +111,10 @@ on CPU lanes, prompt 2048 / generation: 1,668 / 42.8 without NCCL, 1,818 / 42.1 
 | + more work on the faster card, `-ts 3/2` (best for generation) | 782 / 37.0-37.3 |
 | + `-ub 2048` and the all-reduce overlapped with the next part of the layer (`GGML_META_ASYNC_AR=1`), `-ts 3/1` (best for prompts) | **977-984 / 33.8** |
 
-- `-sm tensor` splits **evenly** by default, whatever the cards; a faster card should take more (`-ts`). One load has
-  one split: `-ts 3/2` for chat, `-ts 3/1` for long prompts on this pair.
+- `-sm tensor` splits **evenly** by default, whatever the cards; a faster card should take more (`-ts`), a card with
+  less memory less (step 3 above): split for memory first, then for speed. One load has one split: `-ts 3/2` for
+  chat, `-ts 3/1` for long prompts on this pair. This copy warns when it loads without `-ts` on cards whose free memory
+  differs by more than 10 %, and prints a split by memory.
 - The overlap cuts each layer's work into token chunks (Qwen3.5 / 3.8-family models so far) and needs `-ub 1024` or
   more; NCCL's bf16 threshold can go to 0 on such links (`GGML_CUDA_NCCL_BF16_MIN_NE=0`).
 - Tested on one pair for one evening; the changes are new. Moving the data is still half of the prompt time on this
@@ -164,6 +176,7 @@ use NVIDIA's stock driver instead: [docs/pascal-and-volta.md](docs/pascal-and-vo
 | Outside report: five RTX 2080 Ti 22 GB in a four-socket HP DL580 Gen9 with Xeon E7-8890 v4 ([docs/turing.md](docs/turing.md#outside-report-five-rtx-2080-ti-22-gb-on-a-four-socket-server)) | **works, but slower than host memory between sockets**: byte-exact over NVLink and between two sockets, but between sockets peer writes ran at 0.23 GB/s, about 25 times slower than copies through host memory. NVIDIA's own driver refuses P2P between sockets on these CPUs; the patched driver did not, and from fork commit `acd74cf` it does too ([troubleshooting](docs/troubleshooting.md#two-cpu-sockets-p2p-works-but-slower-than-copying-through-host-memory)) |
 | Outside report: three RTX A2000 12GB on an Intel Z390, one card in the CPU slot, two in chipset slots (NVIDIA's stock driver 580; [docs/boards.md](docs/boards.md), [issue #5](https://github.com/Cinderella-Man/how-to-enable-p2p-on-nvidia-gpus/issues/5)) | **works between the CPU-slot card and either chipset card** (byte-exact); **between the two chipset cards every write is lost**, with no error, while `nvidia-smi topo -p2p r` says `OK`. The same on the test rig's AMD B550 with DRMShare: two cards behind one chipset cannot reach each other |
 | Two generations: RTX 2060 + RTX 3060, Turing + Ampere ([docs/mixed-generations.md](docs/mixed-generations.md)) | **works, experimental**, trial load only: with a patched copy of `libcuda`, CUDA peer access both ways, integrity test passed (264 cases, 1.4 TiB byte-exact) and NCCL `via P2P` (all-reduce 2.72 vs 1.83 GB/s); without it, as root, writes through the other card's memory window with the fork's `RMPeerIoMemBar1` key, byte-exact both ways, a 4-byte copy in 1.8 µs instead of 13.5-18 µs |
+| Outside report: RTX 2070 8 GB (Turing, TU106) + RTX 3060 12 GB (Ampere) on an AMD X570 board, the patched copy of `libcuda` ([docs/mixed-generations.md](docs/mixed-generations.md#outside-report-rtx-2070--rtx-3060-on-an-x570), [drmshare#1](https://github.com/Cinderella-Man/drmshare/issues/1)) | **works**: CUDA peer access both ways, 6.59 GB/s each way from the chipset's PCIe 4.0 x4 slot (4.07 / 3.91 GB/s on the stock driver), a 4-byte copy in 8.5 / 5.7 µs (19.9 / 20.5), NCCL `via P2P/direct pointer`, still on after a cold reboot. Byte-exact by the reporter's own SHA-256 checks; the integrity test was not reported. Needed `iommu=pt` |
 | Tesla V100 pair (another machine, NVIDIA's stock driver 580, no patch; [docs/pascal-and-volta.md](docs/pascal-and-volta.md)) | **works** with the IOMMU in passthrough mode: integrity test passed (264 cases). Without passthrough, CUDA reported P2P while the IOMMU silently dropped the data |
 | When P2P is not possible: memory sharing with DRMShare ([drmshare](https://github.com/Cinderella-Man/drmshare)) | **works, experimental**, not P2P, Vulkan programs only: Tesla V100 with an RTX 3090, an RTX 2060 or a GTX 1070 Ti on driver 580; RTX 2060 + RTX 3060 on 580, 595 and 615. Every copy byte-exact, as fast as CUDA P2P in the same slots; results in its repository |
 | Pascal: 2x P106-090 in the test rig (NVIDIA's stock driver 580, no patch, no override; [docs/pascal-and-volta.md](docs/pascal-and-volta.md)) | **works**: integrity test passed (264 cases, 1.4 TiB byte-exact). CUDA 12.4 and PyTorch 2.14.1 verified on a GTX 1070 Ti. A P106-090 mining board could not carry P2P: its switches and chipset reject the traffic |

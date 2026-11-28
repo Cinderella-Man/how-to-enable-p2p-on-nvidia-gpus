@@ -16,7 +16,9 @@ TU102) was reported earlier with other patches: [cmp50hx-unlock](https://github.
 With this guide, four identical TU102 cards (RTX 2080 Ti) on an Intel X79 board passed the integrity test on all six
 pairs, in an outside report ([below](#outside-report-four-rtx-2080-ti-on-an-x79-board)). Five RTX 2080 Ti 22 GB in a
 four-socket server copied byte-exact too, but between sockets slower than through host memory
-([below](#outside-report-five-rtx-2080-ti-22-gb-on-a-four-socket-server)).
+([below](#outside-report-five-rtx-2080-ti-22-gb-on-a-four-socket-server)). An RTX 2070 (TU106) reached an RTX 3060, a
+card of the next generation, through [mixed-generations.md](mixed-generations.md#outside-report-rtx-2070--rtx-3060-on-an-x570)
+in a third outside report.
 
 **Experimental.** Every piece below was verified on one pair, one board and one driver version. Run the integrity
 test on your own pair before trusting it, and keep a way to reach the machine if it hangs.
@@ -77,7 +79,8 @@ sudo scripts/geforce-bar1-resize check --vram 4G 0000:2b:00.0
 ```
 
 Each card must show six lines starting with `ok` (S1 to S6) and a `PLAN` line `arm 0x610 VAL=7, resize to 8192 MiB`
-(6 GB card) or `arm 0x610 VAL=6, resize to 4096 MiB` (4 GB card). A card behind a chipset or other PCIe switch also
+(6 GB card) or `arm 0x610 VAL=6, resize to 4096 MiB` (4 GB card). An 8 GB card gets `VAL=7` too, a window as large as
+its memory, which was enough for P2P on an RTX 2070 in an outside report. A card behind a chipset or other PCIe switch also
 prints `behind a PCIe switch: yes` and a note that the plain resize usually fails there: T2 is what makes it work.
 
 Install it with the layout module off, dry run first:

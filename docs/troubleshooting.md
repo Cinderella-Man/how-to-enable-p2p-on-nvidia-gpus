@@ -327,6 +327,10 @@ DMAR: [DMA Write NO_PASID] Request device [xx:00.0] fault addr ... [fault reason
 There every copy, in both directions, came back wrong, and on PCIe 3.0 x16 links the speed looked normal: only the
 kernel log and a byte-by-byte check showed it.
 
+Another outside report, an RTX 3060 + RTX 2070 on an AMD X570 board
+([mixed-generations](mixed-generations.md#outside-report-rtx-2070--rtx-3060-on-an-x570)), saw `AMD-Vi: IO_PAGE_FAULT`
+lines under load from both cards, and **NVMe drives dropping off during heavy writes**; both stopped with `iommu=pt`.
+
 **Cause:** the IOMMU translates device addresses (Ubuntu's default wherever the firmware turns the IOMMU on), and it
 blocks one GPU's writes into the other GPU's memory. The copy completes without the data, and neither the driver nor
 CUDA reports an error: **the data is silently lost.**

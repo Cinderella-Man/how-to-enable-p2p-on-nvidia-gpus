@@ -17,8 +17,10 @@ on NVIDIA's stock driver or your program uses Vulkan rather than CUDA, the fallb
 Both routes run at the test rig's ceiling: the RTX 2060 sits in the B550 board's chipset slot, PCIe 3.0 x4 (about 3.3
 GB/s each way at most), the RTX 3060 in a CPU slot, PCIe 4.0 x16.
 
-**Experimental.** Verified on one pair, one board and one driver version, on 2026-11-24. Run the integrity test on
-your own pair before trusting either route, and keep a way to reach the machine if it hangs.
+**Experimental.** Verified here on one pair, one board and one driver version, on 2026-11-24. Route 1 also worked on
+an RTX 2070 + RTX 3060 on an AMD X570 board, in an outside report
+([below](#outside-report-rtx-2070--rtx-3060-on-an-x570)). Run the integrity test on your own pair before trusting
+either route, and keep a way to reach the machine if it hangs.
 
 The test rig:
 
@@ -276,7 +278,43 @@ the same `p2p_iomem` runs for all three columns (route 1 timed with the copy fro
 ## Not tested yet
 
 - A boot install for this pair (`p2p-enable.sh`, [procedure.md step 16](procedure.md#16-boot-install-make-it-survive-a-reboot)):
-  only the trial load above was run.
+  only the trial load above was run here. In the outside report below, P2P was still on after a cold reboot.
 - vLLM across the two cards (two architectures in one tensor-parallel group).
-- Other mixed pairs. For RTX 30, 40 and 50 cards, aikitoria's fork documents P2P between generations with the same
-  `libcuda` patch.
+- Other mixed pairs: one more in the outside report below (RTX 2070 + RTX 3060). For RTX 30, 40 and 50 cards,
+  aikitoria's fork documents P2P between generations with the same `libcuda` patch.
+
+## Outside report: RTX 2070 + RTX 3060 on an X570
+
+From an outside report by [Gavinbombay](https://github.com/Gavinbombay)
+([drmshare#1](https://github.com/Cinderella-Man/drmshare/issues/1), 2026-11-28), not reproduced here: route 1 on a
+second pair of cards and a second board.
+
+| | |
+|---|---|
+| Machine | ASUS TUF GAMING X570-PRO, Ryzen 7 5800X, Ubuntu 26.04, kernel 7.0.0-44 |
+| GPU 0 | RTX 3060 12 GB (GA106, Ampere), X570 chipset slot, PCIe 4.0 x4, Resizable BAR 16 GiB |
+| GPU 1 | RTX 2070 8 GB (TU106, Turing), CPU slot, PCIe 3.0 x16; memory window grown to 8 GiB by geforce-bar1-resize after the card's USB-C controller was removed ([turing.md T2](turing.md#t2-add-the-usb-c-pre-step)) |
+| Software | driver 615.71.09 with the fork, a patched copy of `libcuda` ([M2](#m2-patch-a-copy-of-libcuda)), NCCL 2.32.6 (the build from [nccl-drmshare](https://github.com/Cinderella-Man/nccl-drmshare), which acts as stock NCCL when CUDA offers peer access), kernel options `amd_iommu=on iommu=pt pcie_aspm=off` |
+
+Medians of 7 runs; the reporter checked every copy with SHA-256 (this guide's integrity test was not reported); no
+Xid, AER or DMAR lines:
+
+| | Stock driver (through host RAM) | Route 1 |
+|---|---|---|
+| `nvidia-smi topo -p2p r` | `NS` both ways | `OK` both ways |
+| Copy 256 MiB, 3060 -> 2070 / 2070 -> 3060 | 4.07 / 3.91 GB/s | **6.59 / 6.59 GB/s** |
+| 4-byte copy, 3060 -> 2070 / 2070 -> 3060 | 19.9 / 20.5 µs | 8.5 / 5.7 µs |
+| PyTorch 2.11 all-reduce, 64 MiB fp16 | 3.97 GB/s | 6.47 GB/s |
+| NCCL's route in llama.cpp | `via SHM/direct` | `via P2P/direct pointer` |
+
+- 6.59 GB/s is about the limit of the chipset slot's PCIe 4.0 x4 link: an RTX 3090 in the X570 chipset slot of another
+  board here moved 6.60 GB/s ([boards.md](boards.md)).
+- P2P and the 8 GiB window were back after a cold reboot.
+- With Ubuntu's default IOMMU mode the kernel logged `IO_PAGE_FAULT` under load from both cards, and NVMe drives
+  dropped off during heavy writes; both stopped with `iommu=pt`
+  ([troubleshooting](troubleshooting.md#peer-copies-faster-than-the-link-allows-or-io_page_fault-from-nvidia)).
+- llama.cpp, Qwen3-8B Q4_K_M with `-sm tensor`: 91.6 tokens/s generated with NCCL through host RAM, 92.1 with P2P,
+  against 65.8 for the best layer split; for generation the step to tensor split was the big one, not P2P. Prompt
+  speed with and without P2P was not compared. Qwen3-30B-A3B ran out of memory on the 8 GB card with `-sm tensor` at
+  its even split: on cards with different memory, split by memory with `-ts`
+  ([README](../README.md#llamacpp-build-it-with-nccl), step 3).
