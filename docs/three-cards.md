@@ -76,7 +76,7 @@ with the driver unloaded (after [step 12](procedure.md#12-prepare-the-live-swap-
 `rmmod` of the stock modules), as `geforce-bar1-resize record` while the driver was still loaded, then
 `geforce-bar1-resize boot --card <address>` per card. The windows stay until the next reboot. For a machine that keeps
 P2P, install the tool as in procedure.md step 4b and reboot: not tested on this machine, done at boot in outside
-reports (two RTX 3090s on an X99 board, [geforce-dynbar1-p2p#5](https://github.com/noon-at-cgn/geforce-dynbar1-p2p/issues/5)).
+reports (two RTX 3090s on an X99 board, [boards.md](boards.md#outside-report-two-rtx-3090s-on-a-huananzhi-x99-f8)).
 
 **IOMMU, also without a reboot.** This machine had no `iommu=pt`
 ([step 4](procedure.md#4-iommu-in-passthrough-mode)). With the driver unloaded and each card's HDMI audio function

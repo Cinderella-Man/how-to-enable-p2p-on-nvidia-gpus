@@ -29,6 +29,21 @@ If you see this error, you are building plain upstream. Check that the fix is in
 grep -n 'NV_CXL_CXL_H_PRESENT.*NV_CXL_INIT_SUPPORTED' kernel-open/common/inc/nv-linux.h kernel-open/common/inc/nv-pci.h
 ```
 
+**The same error with the fix in the tree:** an outside report
+([boards.md](boards.md#outside-report-two-rtx-3090s-on-a-huananzhi-x99-f8)) stopped at
+`common/inc/nv-linux.h:1280: field 'cxlds' has incomplete type` with the guards above in place. The tree's
+`kernel-open/conftest/` had been generated on another kernel, and its results described that kernel's CXL headers,
+not the running one's. Build from a clean tree, as step 17 does after a kernel update (`make clean` removes
+`kernel-open/conftest/`):
+
+```bash
+make clean && make modules -j"$(nproc)"
+```
+
+The reporter moved the old `conftest/` aside, and also took `cxl/cxl.h` and `cxl/pci.h` out of
+`kernel-open/header-presence-tests.mk`; with a fresh conftest that second change should not be needed (not checked
+here).
+
 ## `make modules` fails at the very end (BTF)
 
 **Symptom:** everything compiles, and the final module step fails (`pahole: not found` / BTF generation).
@@ -493,6 +508,12 @@ memory: [two CPU sockets](#two-cpu-sockets-p2p-works-but-slower-than-copying-thr
 ([turing.md](turing.md#outside-report-four-rtx-2080-ti-on-an-x79-board)), NCCL went `via SHM` by default and `via
 P2P/CUMEM` with `NCCL_P2P_LEVEL=SYS`. On one socket `PHB` is enough.
 
+**P2P is not always faster:** on an X99 board with an RTX 3090 at PCIe 3.0 x16 and an RTX 3080 Ti at x4
+([boards.md](boards.md#outside-report-rtx-3080-ti--rtx-3090-on-a-huananzhi-x99-qd3), outside report), NCCL 2.32.3 went `via SHM/direct` by
+default and `via P2P/direct pointer` with `NCCL_P2P_LEVEL=PHB`, but large messages were slower with P2P than through
+host RAM. Compare both with your own sizes ([benchmarks](benchmarks.md#4-nccl-and-nccl-tests)) before you keep the
+variable.
+
 **Checked with three RTX 3090s** on an AMD X570 board (one card behind the chipset, two on CPU lanes), the patched
 driver, NCCL 2.32.6 and llama.cpp's CUDA backend built with it ([three-cards.md](three-cards.md#llamacpp-build-it-with-nccl)):
 all three cards ran `via SHM/direct` although `nvidia-smi topo -p2p r` showed `OK` everywhere, and `via P2P/direct` with
@@ -787,6 +808,28 @@ root port `03.0` of the first three buses, and `c1` and `c4` below `c0:03.0` and
 **Other servers:** Intel from Skylake-SP on (UPI) and AMD EPYC are not in NVIDIA's list, and the patched driver offers
 P2P across their sockets. Nobody has measured that with it: compare the integrity test's bandwidth line with a copy
 through host memory (`tools/staged_baseline.cu`) before you rely on it.
+
+## After the integrity test a card stays in P2 at full clocks
+
+From an outside report ([boards.md](boards.md#outside-report-rtx-3080-ti--rtx-3090-on-a-huananzhi-x99-qd3)), not seen or checked here.
+
+**Symptom:** the integrity test passes, but afterwards one card does not go back to idle. `nvidia-smi` shows it in
+`P2` at about 165 W, 1695 MHz graphics and 9501 MHz memory, 0 % use, no CUDA process left, `BAR1 Used` back at 1 MiB,
+while the other card returns to `P8` (about 18 W). `nvidia-smi -q -d PERFORMANCE,CLOCK,POWER` gives `Idle: Active` as
+the clocks event reason and `Unknown Error` for the maximum clocks; the fan field showed `ERR!` at first. In the report
+it was the RTX 3090 on PCIe 3.0 x16; the RTX 3080 Ti on x4 went back to idle.
+
+**Did not help:** unloading `nvidia_uvm` (`sudo modprobe -r nvidia_uvm`), and `sudo nvidia-smi -i 1 -rmc` (resets the
+memory clocks; it succeeded and changed nothing).
+
+**Fix:** a reboot; both cards then idled in `P8` at 6.6 and 8.4 W. The cause is not known. Not tried: reloading the
+whole driver, or a GPU reset (`nvidia-smi -r`). Check your cards after the integrity test:
+
+```bash
+nvidia-smi --query-gpu=index,pstate,power.draw,utilization.gpu --format=csv
+```
+
+A card left in `P2` with 0 % use draws over 150 W more than at idle; in the report only a reboot ended it.
 
 ## `p2p-check.sh --integrity` times out on a slow pair, every case clean
 

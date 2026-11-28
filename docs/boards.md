@@ -3,12 +3,13 @@
 The cards decide which driver you need (the table at the top of the [README](../README.md#which-path-is-yours)). The
 **motherboard** decides whether the traffic between the two cards gets through, and how fast. P2P data travels from one
 card through the board's PCIe paths into the other card, and each board has its own paths. This page collects what is
-known, per board, from the test rig, three other machines, upstream's machine, and eight outside reports.
+known, per board, from the test rig, three other machines, upstream's machine, and ten outside reports.
 
 ## In short
 
 - **Best: both cards on CPU lanes** (the CPU splits its lanes x8/x8 or x16/x16, no switch in between). Upstream's
-  machine got 10.27 GB/s one way and 19.33 GB/s both ways at once.
+  machine got 10.27 GB/s one way and 19.33 GB/s both ways at once, and two RTX 3090s on another X99 board the same
+  (outside report, [below](#outside-report-two-rtx-3090s-on-a-huananzhi-x99-f8)).
 - **Works with limits: one card in a chipset slot.** Speed is capped by the chipset's link (about 3 GB/s each way on the
   test rig's B550). Some traffic patterns break, and how depends on the chipset: on the B550, heavy reads in both
   directions at once reset the machine; on an Intel B460 (outside report), reads do not work at all.
@@ -56,6 +57,8 @@ known, per board, from the test rig, three other machines, upstream's machine, a
 | Outside report, not verified here: ASUS B460, Core i5-10400 | GPU0 on CPU lanes (PCIe 3.0 x8), GPU1 in a **chipset slot** (x4 over DMI 3.0) | 2x RTX 4060 Ti 16GB (driver 620.70.06, a different P2P method) | **writes only**: byte-exact both ways, 5.44 GB/s both ways at once; every read came back as `0xffffffff`, without any error ([troubleshooting](troubleshooting.md#peer-reads-return-0xffffffff-writes-work)) |
 | Outside report, not verified here: Z390, Core i3-9100F ([issue #5](https://github.com/Cinderella-Man/how-to-enable-p2p-on-nvidia-gpus/issues/5), [write-up and checker](https://gist.github.com/Cavemanmining/f8b12d6ab30dfa992309bfed3b661db2)) | GPU A on the CPU's x16 root port; GPU B on an x1 riser and GPU C in an x4 slot, **both on the chipset's root ports**; IOMMU off | 3x RTX A2000 12GB (stock driver 580: P2P enabled for these cards) | **works between the CPU-port card and either chipset card** (103 GiB checked, byte-exact); **between the two chipset cards every write is lost**, copy engine and SM stores, every size, both directions, while `topo -p2p r` says `OK`; no Xid, and nothing latched even in the raw error registers of the chipset's ports and the cards (the firmware keeps AER from Linux). llama.cpp with `GGML_CUDA_P2P=1` across them printed `0000...` |
 | Outside report, not verified here: dual-socket Intel X99 | each card on PCIe 3.0 x16 CPU lanes, two cards per socket | 4x Tesla P40 24 GB (stock driver 580) | **works between two cards on the same socket, with `iommu=pt`**: 10.3 GB/s one way, 19.2 GB/s both ways, byte-exact (the reporter's own test, one pair). Without it every copy came back wrong, with `DMAR` faults and no error. Across the sockets the driver offers no P2P (`TNS`) ([pascal-and-volta](pascal-and-volta.md#outside-report-four-tesla-p40s-on-a-dual-socket-x99)) |
+| Outside report, not verified here: Huananzhi X99-F8, Xeon E5-2690 v4 ([below](#outside-report-two-rtx-3090s-on-a-huananzhi-x99-f8)) | each card on its own CPU root port, PCIe 3.0 x16, no switch; legacy boot, **no Resizable BAR setting in the BIOS** | 2x RTX 3090 (patched driver), BAR1 enlarged from 256 MB to 32 GB by geforce-bar1-resize | **works**: integrity test passed (264 cases), 10.27 GB/s each way, 19.64 GB/s both ways at once |
+| Outside report, not verified here: Huananzhi X99-QD3, Xeon E5-2696 v4 ([below](#outside-report-rtx-3080-ti--rtx-3090-on-a-huananzhi-x99-qd3)) | RTX 3090 on a CPU root port, PCIe 3.0 x16; RTX 3080 Ti on a CPU root port through an **OCuLink** cable, PCIe 3.0 x4 | RTX 3080 Ti + RTX 3090 (patched driver) | **works**: integrity test passed (264 cases), 3.29 / 2.84 GB/s one way, 3.46 GB/s both ways at once (the x4 link). NCCL with P2P was slower than through host RAM for large messages |
 | Outside report, not verified here: HP ProLiant DL580 Gen9, 4x Xeon E7-8890 v4 (four sockets) | each card on its own CPU root port, PCIe 3.0 x16; three cards on three sockets, two on the fourth, those two joined by an NVLink bridge (`nvidia-smi topo -m`: `SYS` between every other pair, `NV2` for the bridged one) | 5x RTX 2080 Ti 22 GB (patched driver up to `b70b69c`, [turing.md](turing.md#outside-report-five-rtx-2080-ti-22-gb-on-a-four-socket-server)) | **works, but slower than host memory between sockets**: byte-exact over NVLink (about 38 GB/s) and between two sockets (246 of 252 cases, both ways), but between sockets peer writes ran at 0.23 GB/s and reads at 1.3 GB/s, while copies from host memory to a card peak at a little over 12 GB/s, so a copy staged through host memory is about 25 times faster (the reporter's estimate). The pinned driver refuses such pairs, as NVIDIA's own does ([troubleshooting](troubleshooting.md#two-cpu-sockets-p2p-works-but-slower-than-copying-through-host-memory)); the reporter's table after the fix shows `TNS` for them, but whether the pinned build was loaded for it is not reported. No pair of PCIe cards on one socket to compare: the only two on one socket are the NVLink pair |
 | Outside report, not verified here: Intel X79, Xeon E5-2680 v2 (one socket) | four cards, every pair through the CPU (`PHB`); slots and links not reported | 4x RTX 2080 Ti 11 GB (patched driver, [turing.md](turing.md#outside-report-four-rtx-2080-ti-on-an-x79-board)) | **works, after a boot option for the board's 64-bit window**: the grown windows first landed where the CPU does not decode them, and every card failed to start until `memmap=` kept Linux out of that range ([troubleshooting](troubleshooting.md#after-the-bar1-resize-every-card-fails-kbusverifybar2_gm107--returned-garbage)). Then the integrity test passed on all six pairs: 3.1-5.2 GB/s one way, 10.4 GB/s both ways, 0.9 µs. Room for four 16 GiB windows, not more |
 | Outside report, not verified here: ASUS ROG STRIX Z590-A, Core i7-11700K ([geforce-dynbar1-p2p#9](https://github.com/noon-at-cgn/geforce-dynbar1-p2p/issues/9)) | each card on its own CPU root port, no switch | 2x RTX 3090 (patched driver) | **writes only**: copies and kernel writes byte-exact, but kernel reads of the other card returned wrong data, while `topo -p2p r` said `OK` and CUDA offered peer access. NVIDIA states that Intel client CPUs support only P2P writes ([NVIDIA/open-gpu-kernel-modules#1253](https://github.com/NVIDIA/open-gpu-kernel-modules/issues/1253)) |
@@ -96,6 +99,7 @@ A **write** into the other card needs no answer, and every board above that carr
 | | Writes | Reads, one direction at a time | Reads, both directions at once, heavy |
 |---|---|---|---|
 | CPU lanes (upstream X99) | yes | yes | not tested |
+| CPU lanes, Intel X99 (two outside reports, RTX 30) | yes | yes (integrity test) | not tested |
 | CPU lanes, Intel X79 (outside report) | yes | yes (integrity test, all six pairs) | not tested |
 | X570 chipset slot (three RTX 3090s) | yes | yes, byte-exact (integrity test) | not tested |
 | B550 chipset slot (test rig) | yes | yes, byte-exact | **resets the machine** (tested with two different Turing chips; identical cards not tested) |
@@ -128,3 +132,82 @@ every pair. On an Intel CPU NCCL uses no P2P through the CPU (two CPU slots, or 
 
 Tested another board? A report helps: the board, the slots, the cards, and what steps 3 and 4 printed, in an
 [issue](https://github.com/Cinderella-Man/how-to-enable-p2p-on-nvidia-gpus/issues).
+
+## Outside reports: RTX 30 pairs on two Huananzhi X99 boards
+
+Two compatibility reports sent to the original repository of the patched driver, not reproduced here. Both ran the
+original repositories' tools (noon-at-cgn's geforce-dynbar1-p2p and geforce-bar1-resize) in November 2026; this guide
+pins forks of both, with fixes made since ([procedure step 4b](procedure.md#4b-a-bar1-at-least-as-large-as-each-cards-memory),
+[step 9](procedure.md#9-what-the-fork-changes-compared-to-upstream-nothing-to-do)).
+
+### Outside report: two RTX 3090s on a Huananzhi X99-F8
+
+From [bluebirdlboro](https://github.com/bluebirdlboro)
+([geforce-dynbar1-p2p#5](https://github.com/noon-at-cgn/geforce-dynbar1-p2p/issues/5), 2026-11-14): two RTX 3090s
+with a 256 MB BAR1, on a board whose BIOS has no Resizable BAR setting at all.
+
+| | |
+|---|---|
+| Machine | Huananzhi X99-F8 (AMI Aptio firmware from 2020), Xeon E5-2690 v4, Ubuntu 26.04, kernel 7.0.0-42; **legacy boot** (CSM), Secure Boot off; **no Re-Size BAR option in the BIOS** |
+| GPU 0 | RTX 3090 24 GB, Colorful iGame Advanced OC (`10de:2204`, subsystem `10de:a042`, vBIOS 94.02.59.00.6F), on its own CPU root port, PCIe 3.0 x16 |
+| GPU 1 | RTX 3090 24 GB, Galax Hall of Fame (`10de:2204`, subsystem `7377:140a`, vBIOS 94.02.26.40.72), on its own CPU root port, PCIe 3.0 x16 |
+| Software | the patched driver 615.71.09, geforce-bar1-resize, kernel options `iommu=pt pci=realloc` |
+
+**BAR1:** 256 MiB on both cards as found, 32768 MiB on both after geforce-bar1-resize, by two different routes on the
+same model in the same machine:
+
+- The Colorful card already listed 32 GiB in its Resizable BAR capability: the tool only resized it (`resize-only` in
+  the check's `PLAN` line), `0x610` untouched.
+- The Galax card listed nothing larger: the tool armed `0x610` (`VAL=9`) first, then resized.
+
+The tool picks the route per card. A resize-only card still needs dynamic BAR1 written by the tool
+(`RMForceStaticBar1=0`), or it keeps static BAR1 and the driver refuses the pair: that is why
+[step 4b](procedure.md#4b-a-bar1-at-least-as-large-as-each-cards-memory) sets `DRIVER_OPTION=on` for every card.
+
+**Result** (`p2p-check.sh --integrity`; `nvidia-smi topo -m`: `PHB`): **ALL PASS**, 264 cases, 2112 transfers,
+1403.6 GiB byte-exact. Peer copies (256 MiB x 20, contents checked): 10.27 GB/s each way, 19.64 GB/s both ways at once,
+the same as the original repository's own X99 machine (10.27 / 19.33 GB/s, [above](#what-is-known-board-by-board)).
+
+On the way there:
+
+- The build stopped at `nv-linux.h:1280: field 'cxlds' has incomplete type`, because of a `kernel-open/conftest/`
+  generated on another kernel ([troubleshooting](troubleshooting.md#make-modules-fails-in-the-cxl-code)).
+- Ubuntu's `71-nvidia.rules` kept `udevadm settle` waiting (20 s), so `p2p-load.sh` went back to the stock driver after
+  the patched one had loaded, and the same rules file started `nvidia-persistenced`, which held the driver. Both are
+  handled in [step 12](procedure.md#12-prepare-the-live-swap-stop-everything-that-reloads-the-stock-driver)
+  (with the override, `udevadm settle` took 0.02 s).
+
+### Outside report: RTX 3080 Ti + RTX 3090 on a Huananzhi X99-QD3
+
+From [QuantBox723](https://github.com/QuantBox723)
+([geforce-dynbar1-p2p#4](https://github.com/noon-at-cgn/geforce-dynbar1-p2p/issues/4), 2026-11-11): one card on an
+OCuLink cable at PCIe 3.0 x4, the boot install with Secure Boot on.
+
+| | |
+|---|---|
+| Machine | Huananzhi X99-QD3, Xeon E5-2696 v4, Ubuntu 26.04.1, kernel 7.0.0-43; Secure Boot on, the patched modules signed with a MOK; boot install (`p2p-install.sh`) |
+| GPU 0 | RTX 3080 Ti 12 GB, MSI (`10de:2208`, subsystem `1462:389b`, vBIOS 94.02.71.40.14), CPU root port through an **OCuLink** cable, PCIe 3.0 x4; BAR1 16384 MiB |
+| GPU 1 | RTX 3090 24 GB, Dell (`10de:2204`, subsystem `1028:3880`, vBIOS 94.02.59.00.D6), CPU root port, PCIe 3.0 x16; BAR1 32768 MiB |
+| Software | the patched driver 615.71.09, geforce-bar1-resize, kernel options `intel_iommu=on iommu=pt`, CUDA 13.2, NCCL 2.32.3 |
+
+Whether this BIOS has a Resizable BAR setting, and which route each card's BAR1 took, was not reported.
+
+**Result:** `p2p-check.sh` after the reboot **ALL PASS** (`topo -p2p r` and `w`: `OK`; no Xid, AER or DMAR lines);
+integrity test **PASS**, 264 cases, 1403.6 GiB byte-exact. `p2pBandwidthLatencyTest`, P2P off (through host RAM) ->
+**on**:
+
+| | |
+|---|---|
+| 3080 Ti -> 3090 | 2.51-2.52 -> **3.29 GB/s** |
+| 3090 -> 3080 Ti | 2.45-2.46 -> **2.84 GB/s** |
+| Both ways at once | not reported -> 3.45-3.46 GB/s |
+| GPU latency | 13.4-15.0 -> **1.01-1.13 µs** |
+
+The x4 link sets the speed: about a third of the X99-F8 pair's one way, a sixth both ways.
+
+- **NCCL** 2.32.3 went `via SHM/direct` by default (an Intel CPU:
+  [troubleshooting](troubleshooting.md#nccl-goes-via-shm-although-cuda-offers-peer-access)). With
+  `NCCL_P2P_LEVEL=PHB` it went `via P2P/direct pointer`, but large messages were slower than through host RAM. On a
+  pair with an x4 link, measure both.
+- **After the integrity test the RTX 3090 stayed in P2** at about 165 W and full clocks, 0 % use, no process left,
+  until a reboot ([troubleshooting](troubleshooting.md#after-the-integrity-test-a-card-stays-in-p2-at-full-clocks)).
