@@ -286,7 +286,7 @@ the same `p2p_iomem` runs for all three columns (route 1 timed with the copy fro
 ## Outside report: RTX 2070 + RTX 3060 on an X570
 
 From an outside report by [Gavinbombay](https://github.com/Gavinbombay)
-([drmshare#1](https://github.com/Cinderella-Man/drmshare/issues/1), 2026-11-28), not reproduced here: route 1 on a
+([#6](https://github.com/Cinderella-Man/how-to-enable-p2p-on-nvidia-gpus/issues/6), 2026-11-28), not reproduced here: route 1 on a
 second pair of cards and a second board.
 
 | | |
