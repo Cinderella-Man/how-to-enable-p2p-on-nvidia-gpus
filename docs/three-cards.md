@@ -74,7 +74,11 @@ The tool lists every card but the RTX 3080 20GB as untested; on the 3090 it veri
 ([procedure.md step 4b](procedure.md#4b-a-bar1-at-least-as-large-as-each-cards-memory)). Here, to avoid a reboot, it ran once by hand
 with the driver unloaded (after [step 12](procedure.md#12-prepare-the-live-swap-stop-everything-that-reloads-the-stock-driver),
 `rmmod` of the stock modules), as `geforce-bar1-resize record` while the driver was still loaded, then
-`geforce-bar1-resize boot --card <address>` per card. The windows stay until the next reboot. For a machine that keeps
+`geforce-bar1-resize boot --card <address>` per card. The windows stay until the next reboot. Without a config file,
+`record` also writes the `RMForceStaticBar1=0` line, but only for the cards it will enlarge through `0x610`
+(`DRIVER_OPTION=auto`): a card that needs only the resize keeps static BAR1, and the driver refuses its pairs. Seen on
+this machine on 2026-11-28, after a card swap left `04:00.0` resize-only. Write the line for every card afterwards, with
+[step 11b](procedure.md#11b-driver-dynamic-bar1-for-each-card-rmforcestaticbar10)'s command. For a machine that keeps
 P2P, install the tool as in procedure.md step 4b and reboot: not tested on this machine, done at boot in outside
 reports (two RTX 3090s on an X99 board, [boards.md](boards.md#outside-report-two-rtx-3090s-on-a-huananzhi-x99-f8)).
 

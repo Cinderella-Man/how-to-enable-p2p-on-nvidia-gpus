@@ -825,7 +825,8 @@ through host memory (`tools/staged_baseline.cu`) before you rely on it.
 
 ## After the integrity test a card stays in P2 at full clocks
 
-From an outside report ([boards.md](boards.md#outside-report-rtx-3080-ti--rtx-3090-on-a-huananzhi-x99-qd3)), not seen or checked here.
+From an outside report ([boards.md](boards.md#outside-report-rtx-3080-ti--rtx-3090-on-a-huananzhi-x99-qd3)), not seen here: on three RTX
+3090s on an AMD X570 (2026-11-28) all three were back in `P8` after the full integrity test.
 
 **Symptom:** the integrity test passes, but afterwards one card does not go back to idle. `nvidia-smi` shows it in
 `P2` at about 165 W, 1695 MHz graphics and 9501 MHz memory, 0 % use, no CUDA process left, `BAR1 Used` back at 1 MiB,

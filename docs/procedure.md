@@ -24,9 +24,15 @@ integrity test tells a slow pair from a hung one), and on 2026-11-28 to `9f80306
 ends in `SETUP OK, DATA NOT CHECKED` instead of `ALL PASS`; text only, checked with the fork's stand-in tests), and then
 to `4361112` (cards on two root ports of an Intel desktop or laptop CPU are refused: such a CPU does not route peer
 reads; the GA102 cards with passing integrity tests are verified; the original repository's compatibility reports).
-`e067c4a`'s driver change compiles and has not run on a GPU either; on an AMD board or a Xeon it changes nothing.
+`e067c4a`'s driver change has run on an AMD board only, where it changes nothing (no pair refused, below); its Intel
+desktop and laptop path has not run on a GPU.
 Then to `85929ec` (scripts and the integrity test only: a boot install that works on Debian's kernel versions, checks
-that the next boot loads it, and the values a failed transfer read).
+that the next boot loads it, and the values a failed transfer read). **Run at this pin on 2026-11-28** on three RTX
+3090s on another machine (AMD X570, one card behind the chipset, kernel 7.0.0-44, kmod 34.2), everything but the
+reboot: steps 8-14 (the trial load, `topo -p2p r` `OK` on all three pairs, 0 pairs refused, the integrity test `ALL
+PASS` on all three pairs, 264 cases each), then step 16b (`/etc/depmod.d/p2p.conf` with the anchored kernel field,
+every module resolving to `updates/p2p`, `p2p-check.sh`'s new check passing), every module unloaded and loaded again by
+`modprobe` from the install (our build, with its options; `ALL PASS` again), and step 18 with `--live` back to stock.
 `acd74cf`'s driver change compiles and has not run on a GPU; with the cards on one socket it changes nothing. The whole
 procedure has not been re-run with this pin.
 
