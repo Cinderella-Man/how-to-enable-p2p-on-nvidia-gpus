@@ -13,7 +13,7 @@ Ubuntu's stock 615.71.09 packages.
 | Steps | Status |
 |---|---|
 | 1-16 (driver, CUDA, build from the fork, trial load, integrity test, boot install, reboot) | **Verified 2026-11-23, twice.** First on the original test rig (installed as 24.04, upgraded to 26.04). Then on the same machine **freshly installed with Ubuntu 26.04.1**, as a blind run: a reader with only this repository followed the steps in order. That run found two gaps, both fixed in this version: `git` was missing in step 6, and the initramfs needed step 16a. In both runs the integrity test passed (264 cases, 1.4 TiB byte-exact), and P2P came up by itself after every reboot, including with Ubuntu's default udev rules and `nvidia-persistenced`. |
-| 4b (BAR1 with geforce-bar1-resize, every card) | The same commands as [turing.md](turing.md) T1-T3, verified at boot with two Turing cards on the test rig; on RTX 3090s whose vBIOS stops at 256 MB run once by hand on another machine ([three-cards.md](three-cards.md#bar1-on-cards-without-resizable-bar)), and at boot in outside reports. Step 4b itself, as written, has not been run start to end. |
+| 4b (BAR1 with geforce-bar1-resize, every card) | The same commands as [turing.md](turing.md) T1-T3, verified at boot with two Turing cards on the test rig; on RTX 3090s whose vBIOS stops at 256 MB run once by hand on another machine ([three-cards.md](three-cards.md#bar1-on-cards-without-resizable-bar)), and at boot in outside reports. Step 4b as written ran on the test rig on 2026-11-28 with a Zotac RTX 3080 12 GB behind the chipset (Re-Size BAR Support off in the BIOS): 256 MB at boot, 16 GB after the reboot, also through the forced `0x610` route; the driver started on it, 0 Xid. |
 | 17-18 (updates, rollback) | Taken from the upstream scripts and README. Not run yet. |
 
 The fork's pin has moved since those runs: to `25c929e` (an opt-in driver key, off unless set) and, on 2026-11-25, to
@@ -46,7 +46,8 @@ the modules are swapped.
 - Each card's BAR1 at least as large as its VRAM (32 GiB for a 24 GiB 3090, 16 GiB for a 10 or 12 GB 3080): from
   Resizable BAR in the BIOS, or, where the BIOS has no such option or the card's vBIOS stops at 256 MB, from
   geforce-bar1-resize at every boot, without flashing anything ([step 4b](#4b-a-bar1-at-least-as-large-as-each-cards-memory)).
-  Either way Above 4G Decoding must be on.
+  Either way **Above 4G Decoding** must be on in the BIOS ([step 1](#1-bios)): without it no BAR1 can be larger than
+  256 MB, and P2P cannot work.
 - Secure Boot **off**. The modules you build here are unsigned.
 - Ubuntu 26.04 with the `nvidia-driver-615-open` package: version **615.71.09** exactly. Any other driver branch
   will not work with this patch set.
@@ -55,10 +56,28 @@ the modules are swapped.
 
 ## 1. BIOS
 
-- **Above 4G Decoding**: on
-- **Re-Size BAR Support**: on
-- **IOMMU / AMD-Vi (or VT-d)**: on or auto (step 4 puts it in passthrough mode)
-- **Secure Boot**: off
+The names differ between board makers; the test rig's MSI names are given where they differ.
+
+- **Above 4G Decoding: on. Without it P2P cannot work.** (MSI: *Above 4G memory/Crypto Currency mining*; ASUS,
+  Gigabyte and ASRock: *Above 4G Decoding*.) It lets the firmware place memory windows above 4 GB. Without it no card
+  gets a BAR1 larger than 256 MB: neither Resizable BAR nor geforce-bar1-resize ([step 4b](#4b-a-bar1-at-least-as-large-as-each-cards-memory)) can enlarge it
+  (the resize fails with `No space left on device`), and a card with a large window of its own, such as a Tesla V100
+  (32 GB), cannot get its window at all. **Check it again after changing Resizable BAR:** on the test rig's MSI B550,
+  the boot after Re-Size BAR Support was switched off never reached the network, and the machine came up normally once
+  Above 4G memory was enabled again.
+- **Resizable BAR: on, if the BIOS has it.** (MSI, ASUS, Gigabyte: *Re-Size BAR Support*; on ASRock's AMD boards also
+  *C.A.M. (Clever Access Memory)*.) It gives each card the largest window its vBIOS offers. It needs UEFI boot (CSM
+  off). If the BIOS has no such option, or the card's vBIOS offers only 256 MB, [step 4b](#4b-a-bar1-at-least-as-large-as-each-cards-memory) does the same job
+  without it.
+- **CSM (Compatibility Support Module): off** if you use Resizable BAR from the BIOS. geforce-bar1-resize (step 4b) works
+  either way: an outside report booted in legacy mode.
+- **IOMMU / AMD-Vi (or VT-d): on or auto.** Step 4 puts it in passthrough mode; without passthrough, peer copies can be
+  lost without any error.
+- **Secure Boot: off.** The modules you build here are unsigned, and with Secure Boot on the kernel refuses to load
+  them (unless you sign them with a key the machine trusts, a MOK, as two outside reports did).
+- **A bifurcation splitter** (several cards in one x16 slot): set that slot's lane split first (MSI: *PCI_E1 Lanes
+  Configuration*, for example x4x4x4x4) and its speed (MSI: *PCI_E1 Gen Switch*, Gen3 for a Gen 3 splitter); with the
+  defaults the board finds no card behind it ([boards.md](boards.md)).
 
 Check after Ubuntu is installed (step 2):
 
@@ -235,7 +254,9 @@ for d in $(lspci -D -d 10de::0300 | awk '{print $1}'); do echo "$d $(sudo lspci 
   That is every Turing card (RTX 20, GTX 16) and many RTX 30 cards, RTX 3090s included. A vBIOS update is not needed:
   [geforce-bar1-resize](https://github.com/Cinderella-Man/geforce-bar1-resize) enlarges BAR1 at every boot, before
   the NVIDIA driver loads, through the card's frame-buffer size override in PCI config space (`0x610`). Nothing is
-  flashed, a boot without it returns the stock window, and it needs only Above 4G Decoding. It gave 32 GiB to RTX 3090s
+  flashed, a boot without it returns the stock window, and it needs no Resizable BAR option in the BIOS. It does need
+  **Above 4G Decoding** on ([step 1](#1-bios); MSI: *Above 4G memory/Crypto Currency mining*): without it the resize
+  fails with `No space left on device`. It gave 32 GiB to RTX 3090s
   whose vBIOS stops at 256 MB ([three-cards.md](three-cards.md#bar1-on-cards-without-resizable-bar)), also on an X99
   board without any Resizable BAR option (an outside report,
   [geforce-dynbar1-p2p#5](https://github.com/noon-at-cgn/geforce-dynbar1-p2p/issues/5)), and 8 GB and 4 GB to the
@@ -250,7 +271,7 @@ commit:
 cd ~
 git clone https://github.com/Cinderella-Man/geforce-bar1-resize.git
 cd geforce-bar1-resize
-git checkout 75c7e03e36e88582bed86ba04c5c04ecf3148a0a
+git checkout 587936703641b78595e86e98dacfe6d351493b4d
 ```
 
 Read-only check, one card at a time, with its memory size (`24G` for an RTX 3090, `10G` or `12G` for an RTX 3080, `8G`,

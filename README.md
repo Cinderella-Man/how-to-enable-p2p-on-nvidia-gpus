@@ -89,7 +89,7 @@ RAM, unless they talk through DRMShare's experimental NCCL fork ([nccl.md](https
 
 | Your situation | Why P2P does not fit | DRMShare, tested |
 |---|---|---|
-| A Tesla V100 with a GeForce card | the V100 runs only on NVIDIA's closed driver 580 (this guide's patched driver cannot run it), and CUDA refuses peer access between two architectures | V100 + RTX 3090, V100 + RTX 2060, V100 + GTX 1070 Ti, on 580 |
+| A Tesla V100 with a GeForce card | the V100 runs only on NVIDIA's closed driver 580 (this guide's patched driver cannot run it), and CUDA refuses peer access between two architectures | V100 + RTX 3090, V100 + RTX 3080, V100 + RTX 2060, V100 + GTX 1070 Ti, on 580 |
 | A Pascal card (GTX 10, P106) with a card of another generation | the same: Pascal runs only on 580, and CUDA refuses peer access between two architectures | Volta + Pascal (V100 + GTX 1070 Ti); Pascal with Turing or Ampere not tested |
 | Two generations of Turing or newer (for example RTX 2060 + RTX 3060), on NVIDIA's stock driver | the routes of [mixed-generations.md](docs/mixed-generations.md) need this guide's patched driver, plus a patched copy of `libcuda` or root | RTX 2060 + RTX 3060 on 580, 595 and 615 |
 | Your program uses Vulkan, not CUDA (llama.cpp's Vulkan backend) | P2P only reaches CUDA programs | llama.cpp tensor parallel with the all-reduce through shared video memory: same results; faster on V100 + RTX 3090 (prompts +18 %), not on RTX 2060 + RTX 3060. Together with this guide's patched driver: not tested |
@@ -180,7 +180,8 @@ on CPU lanes, prompt 2048 / generation: 1,668 / 42.8 without NCCL, 1,818 / 42.1 
 For RTX 30 cards (GA102). Turing cards need the extra steps in [docs/turing.md](docs/turing.md). Pascal and Volta cards
 use NVIDIA's stock driver instead: [docs/pascal-and-volta.md](docs/pascal-and-volta.md).
 
-1. BIOS: Above 4G Decoding on, Resizable BAR on if the BIOS has it, Secure Boot off. BAR1 must be at least VRAM: a
+1. BIOS ([procedure step 1](docs/procedure.md#1-bios)): **Above 4G Decoding on** (without it no BAR1 above 256 MB, so
+   no P2P), Resizable BAR (*Re-Size BAR Support*) on if the BIOS has it, Secure Boot off. BAR1 must be at least VRAM: a
    card left at 256 MB (no Resizable BAR in the BIOS or in its vBIOS) gets its window from geforce-bar1-resize at every
    boot, without flashing ([procedure step 4b](docs/procedure.md#4b-a-bar1-at-least-as-large-as-each-cards-memory)).
 2. Ubuntu 26.04, then **`nvidia-driver-615-open`**. Not the `595` that `ubuntu-drivers` recommends. Hold the 615

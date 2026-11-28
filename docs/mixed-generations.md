@@ -49,7 +49,8 @@ The fork's own pair check knows this and says so:
 
 ## Before you start
 
-1. [procedure.md](procedure.md) steps 1-10, 11a and 16a: BIOS (Above 4G Decoding and Resizable BAR on), Ubuntu, driver
+1. [procedure.md](procedure.md) steps 1-10, 11a and 16a: BIOS ([step 1](procedure.md#1-bios): **Above 4G Decoding on**, without it
+   no P2P; Resizable BAR on if the BIOS has it), Ubuntu, driver
    615, IOMMU in passthrough mode, CUDA 13.5, the fork at the pinned commit, the build, `contrib/config.sh` with both
    cards' addresses, the initramfs fix.
 2. For the Turing card: [procedure.md step 4b](procedure.md#4b-a-bar1-at-least-as-large-as-each-cards-memory), the bigger memory window at every boot, with
