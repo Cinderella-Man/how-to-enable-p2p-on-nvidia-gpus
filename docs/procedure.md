@@ -13,7 +13,7 @@ Ubuntu's stock 615.71.09 packages.
 | Steps | Status |
 |---|---|
 | 1-16 (driver, CUDA, build from the fork, trial load, integrity test, boot install, reboot) | **Verified 2026-11-23, twice.** First on the original test rig (installed as 24.04, upgraded to 26.04). Then on the same machine **freshly installed with Ubuntu 26.04.1**, as a blind run: a reader with only this repository followed the steps in order. That run found two gaps, both fixed in this version: `git` was missing in step 6, and the initramfs needed step 16a. In both runs the integrity test passed (264 cases, 1.4 TiB byte-exact), and P2P came up by itself after every reboot, including with Ubuntu's default udev rules and `nvidia-persistenced`. |
-| 4b (BAR1 with geforce-bar1-resize, every card) | The same commands as [turing.md](turing.md) T1-T3, verified at boot with two Turing cards on the test rig; on RTX 3090s whose vBIOS stops at 256 MB run once by hand on another machine ([three-cards.md](three-cards.md#bar1-on-cards-without-resizable-bar)), and at boot in outside reports ([boards.md](boards.md#outside-reports-rtx-30-pairs-on-two-huananzhi-x99-boards)). Step 4b as written ran on the test rig on 2026-11-28 with a Zotac RTX 3080 12 GB behind the chipset (Re-Size BAR Support off in the BIOS): 256 MB at boot, 16 GB after the reboot, also through the forced `0x610` route; the driver started on it, 0 Xid. |
+| 4b (BAR1 with geforce-bar1-resize, every card) | The same commands as [turing.md](turing.md) T1-T3, verified at boot with two Turing cards on the test rig; on RTX 3090s whose vBIOS stops at 256 MB run once by hand on another machine ([three-cards.md](three-cards.md#bar1-on-cards-without-resizable-bar)), and at boot in outside reports ([boards.md](boards.md#outside-reports-rtx-30-pairs-on-two-huananzhi-x99-boards)). Step 4b as written ran on the test rig on 2026-11-28 with a Zotac RTX 3080 12 GB behind the chipset (Re-Size BAR Support off in the BIOS): 256 MB at boot, 16 GB after the reboot, also through the forced `0x610` route; the driver started on it, 0 Xid. The same day on an RTX 4080 SUPER (Ada) on another machine, on a CPU slot, Re-Size BAR Support off: 256 MB at boot, 16 GB after the reboot by the plain resize, the driver started on it; `0x610` run by hand on it also gave 16, 32 and 64 GiB ([the fork's hardware.md](https://github.com/Cinderella-Man/geforce-bar1-resize/blob/main/docs/hardware.md#ada-0x610-on-an-rtx-4080-super-ad103)). |
 | 17-18 (updates, rollback) | Taken from the upstream scripts and README. Not run yet. |
 
 The fork's pin has moved since those runs: to `25c929e` (an opt-in driver key, off unless set) and, on 2026-11-25, to
@@ -277,7 +277,7 @@ commit:
 cd ~
 git clone https://github.com/Cinderella-Man/geforce-bar1-resize.git
 cd geforce-bar1-resize
-git checkout 587936703641b78595e86e98dacfe6d351493b4d
+git checkout 5033f430c9d0a9728e24386eb310d51e1f1ee8fd
 ```
 
 Read-only check, one card at a time, with its memory size (`24G` for an RTX 3090, `10G` or `12G` for an RTX 3080, `8G`,
